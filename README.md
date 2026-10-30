@@ -4,7 +4,7 @@ A Google Sheets + Apps Script system that tracks recurring operational tasks, te
 
 Built for the **Allo Innoware AI Operations Manager assignment**. The full design, SLA reasoning and test cases are in [docs/DESIGN.md](docs/DESIGN.md).
 
-![Recurring task tracker: every recurring task tracked, nothing slips](docs/images/cover.webp)
+![Recurring task tracker: missed at 18:00, the manager knows by 18:30](docs/images/cover.webp)
 
 ## What it does
 
