@@ -330,6 +330,23 @@ function isAdminEmail(email, ownerEmail, adminList) {
   return admins.indexOf(me) !== -1;
 }
 
+/**
+ * Who may edit each tab: employees only their own My Tasks tab, managers only the dashboard,
+ * admins everything. Emails are lower-cased and de-duplicated, admins first.
+ */
+function buildAccessPlan(employees, adminList, managerList) {
+  var split = function (v) { return String(v || '').split(',').map(function (x) { return x.trim().toLowerCase(); }).filter(String); };
+  var uniq = function (list) { return list.filter(function (v, i) { return list.indexOf(v) === i; }); };
+  var admins = uniq(split(adminList));
+  var plan = employees.filter(function (e) { return e.tabName; }).map(function (e) {
+    return { sheet: e.tabName, role: 'Employee: ' + e.name, editors: uniq(admins.concat(split(e.email))) };
+  });
+  plan.push({ sheet: SHEETS.DASHBOARD, role: 'Manager', editors: uniq(admins.concat(split(managerList))) });
+  [SHEETS.GUIDE, SHEETS.TASKS, SHEETS.EMPLOYEES, SHEETS.CONFIG, SHEETS.HOLIDAYS, SHEETS.CYCLES, SHEETS.ALERTS, SHEETS.TESTS]
+    .forEach(function (n) { plan.push({ sheet: n, role: 'Admin', editors: admins.slice() }); });
+  return plan;
+}
+
 // ---------------------------------------------------------------- views
 
 var STATUS_ORDER_ = { Overdue: 0, Pending: 1, Upcoming: 2, Completed: 3 };

@@ -24,13 +24,14 @@ function onOpen() {
     .addSeparator()
     .addItem('Setup / repair sheets', 'setupSystem')
     .addItem('Sync holidays now', 'syncHolidaysFromMenu')
+    .addItem('Apply access rules', 'applyAccessRulesFromMenu')
     .addItem('Install triggers', 'installTriggers')
     .addItem('Reset live data (clear all cycles)', 'resetLiveData')
     .addToUi();
 }
 
 function runAutomationFromMenu() {
-  requireUi_();
+  requireAdmin_();
   var r = runAutomation_();
   toast_('Done. New cycles: ' + r.created + ', manager alerts: ' + r.managerAlerts + ', escalations: ' + r.escalations + '.');
 }
@@ -80,15 +81,12 @@ function setupSystem() {
   setupTable_(SHEETS.TESTS, TEST_COLS, []);
   var cycles = getSheet_(SHEETS.CYCLES);
   cycles.getRange(2, 14, cycles.getMaxRows() - 1, 1).setNumberFormat('@'); // Ticket IDs like 00123 keep their zeros
-  ['Task_Cycles', 'Alert_Log'].forEach(function (n) {
-    getSheet_(n).protect().setDescription('Written by automation. Edit via My Tasks / Manager Dashboard.').setWarningOnly(true);
-  });
 
-  protectConfig_();
   writeGuide_();
   readTable_(SHEETS.EMPLOYEES, EMPLOYEE_COLS).forEach(function (emp) { setupEmployeeTab_(emp); });
   ensureSheet_(SHEETS.DASHBOARD).setFrozenRows(0);
   orderSheets_();
+  var access = applyAccessRules_();
 
   var holidayNote = '';
   try {
@@ -98,20 +96,8 @@ function setupSystem() {
     holidayNote = '\nHolidays: sync failed (' + e.message + '). Try Ops Automation → Sync holidays now.';
   }
   runAutomation_();
-  SpreadsheetApp.getUi().alert('Setup complete.' + holidayNote + '\n\nNext: Ops Automation → Install triggers (one time) so alerts run automatically.');
-}
-
-/** Config holds recipients and the admin list, so only admins may edit it; SIMULATED_NOW stays open for the demo. */
-function protectConfig_() {
-  var sh = getSheet_(SHEETS.CONFIG);
-  sh.getProtections(SpreadsheetApp.ProtectionType.SHEET).forEach(function (p) { p.remove(); });
-  var p = sh.protect().setDescription('Admins only: recipients, SLA settings and the admin list');
-  var simRow = findRowByValue_(sh, 1, 'SIMULATED_NOW');
-  if (simRow) p.setUnprotectedRanges([sh.getRange(simRow, 2)]);
-  p.removeEditors(p.getEditors());
-  var extra = loadConfig_().adminEmails.split(',').map(function (x) { return x.trim(); }).filter(String);
-  if (extra.length) p.addEditors(extra);
-  if (p.canDomainEdit()) p.setDomainEdit(false);
+  var accessNote = access.problems.length ? '\nAccess rules: could not add ' + access.problems.join('; ') : '\nAccess rules applied to ' + access.sheets + ' tabs.';
+  SpreadsheetApp.getUi().alert('Setup complete.' + holidayNote + accessNote + '\n\nNext: Ops Automation → Install triggers (one time) so alerts run automatically.');
 }
 
 function setupTable_(name, cols, seed) {
@@ -129,10 +115,6 @@ function setupEmployeeTab_(emp) {
   sh.setColumnWidth(7, 220);
   sh.setColumnWidth(EMP_VIEW.INPUT_COL, 320);
   sh.getRange(EMP_VIEW.HEADER_ROW + 1, EMP_VIEW.INPUT_COL, sh.getMaxRows() - EMP_VIEW.HEADER_ROW, 1).setNumberFormat('@');
-  sh.getProtections(SpreadsheetApp.ProtectionType.SHEET).forEach(function (p) { p.remove(); });
-  sh.protect().setDescription('Only the yellow column is for input')
-    .setUnprotectedRanges([sh.getRange(EMP_VIEW.HEADER_ROW + 1, EMP_VIEW.INPUT_COL, sh.getMaxRows() - EMP_VIEW.HEADER_ROW, 1)])
-    .setWarningOnly(true);
 }
 
 function orderSheets_() {
@@ -220,9 +202,13 @@ function writeGuide_() {
     ['Test_Log', 'Results of the built-in demo tests (menu ⚙ Ops Automation → Demo tests).'],
     ['', ''],
     ['DEMO', ''],
-    ['Admin menu items', 'Setup / repair, Install triggers, Reset live data and Sync holidays are visible to everyone but only run for the sheet owner (and anyone in Config → ADMIN_EMAILS). The Config tab can only be edited by them too.'],
+    ['ACCESS', ''],
+    ['Employees', 'Can edit only their own "My Tasks" tab (matched by their email in the Employees tab). Anything typed outside the yellow column is undone automatically.'],
+    ['Managers', 'The address(es) in Config → MANAGER_EMAIL can edit only the Manager Dashboard (Ack ✔, Manager Action, Note).'],
+    ['Admins', 'The sheet owner plus Config → ADMIN_EMAILS can edit every tab and use the ⚙ Ops Automation menu (everyone sees the menu; it only runs for admins). Every other tab is admin-only.'],
+    ['Viewing', 'Google Sheets cannot hide tabs per person: everyone with access can view every tab. Rules re-apply automatically when the Employees or Config tab changes, or via ⚙ Ops Automation → Apply access rules.'],
     ['Copyright', '© 2026 Prateek Sahni. All rights reserved. Built for the Allo Innoware AI Operations Manager assignment.'],
-    ['For reviewers', 'The first time you use the ⚙ Ops Automation menu, Google asks for permission ("Google hasn\'t verified this app" → Advanced → Go to Allo Recurring Task Tracker → Allow). This is the sheet\'s own script. The automation already runs on the owner\'s account, so you do not need "Install triggers". To try it live: type a Ticket ID in the yellow cell of a My Tasks tab, or acknowledge an item on the Manager Dashboard.'],
+    ['For reviewers', 'Reviewers are set up as admins, so you can run the demo and act as any employee or the manager. The first time you use the ⚙ Ops Automation menu, Google asks for permission ("Google hasn\'t verified this app" → Advanced → Go to Allo Recurring Task Tracker → Allow). This is the sheet\'s own script. The automation already runs on the owner\'s account, so you do not need "Install triggers". To try it live: type a Ticket ID in the yellow cell of a My Tasks tab, or acknowledge an item on the Manager Dashboard.'],
     ['How to test', 'Menu ⚙ Ops Automation → Demo tests → Run all 8 tests (or a single test). Tests use a simulated clock (Config SIMULATED_NOW) so days of activity happen in seconds. Your live data is saved first. Real emails are sent, prefixed [DEMO]. Afterwards, look at the dashboard, the tabs, Task_Cycles and Alert_Log, then choose "Exit demo mode" to restore live data.']
   ];
   sh.getRange(1, 1, lines.length, 2).setValues(lines).setWrap(true).setVerticalAlignment('top');

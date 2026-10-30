@@ -4,6 +4,8 @@ A Google Sheets + Apps Script system that tracks recurring operational tasks, te
 
 Built for the **Allo Innoware AI Operations Manager assignment**. The full design, SLA reasoning and test cases are in [docs/DESIGN.md](docs/DESIGN.md).
 
+![Recurring task tracker: every recurring task tracked, nothing slips](docs/images/cover.webp)
+
 ## What it does
 
 | | |
@@ -16,6 +18,25 @@ Built for the **Allo Innoware AI Operations Manager assignment**. The full desig
 | **Working-day calendar** | Sundays are skipped. Public holidays sync weekly from Google's India holiday calendar (public holidays only, not observances). Company-specific days off can be added by hand. |
 | **No duplicates** | Cycle IDs are deterministic, every run holds a script lock, and each alert level is recorded so it sends at most once per cycle. |
 | **Built-in demo** | A simulated clock replays all 8 assignment test scenarios in about a minute, with evidence written to a Test_Log tab. |
+
+## Screenshots
+
+*Sample data. Names and emails are placeholders.*
+
+**Manager Dashboard:** team summary, plus every overdue or alerted item with its acknowledgement and outcome.
+![Manager Dashboard](docs/images/dashboard.webp)
+
+**An employee's My Tasks tab:** the daily update is completed by pasting the WhatsApp message into the yellow cell.
+![My Tasks tab](docs/images/my-tasks.webp)
+
+**Same-day manager alert and one-tap acknowledgement**
+![Alert email and acknowledgement page](docs/images/alert-and-ack.webp)
+
+**Escalation timeline**
+![Escalation SLA](docs/images/escalation-sla.webp)
+
+**Built-in demo of the 8 assignment tests**
+![Demo test results](docs/images/demo-tests.webp)
 
 ## How it fits together
 
@@ -39,6 +60,7 @@ src/            Apps Script project (deployed with clasp)
   Mail.js       email builders
   WebApp.js     acknowledgement page (email link)
   Holidays.js   weekly public-holiday sync
+  Access.js     per-role protections on every tab
   Setup.js      menu, setup, triggers, guide tab
   DemoTests.js  in-sheet demo of assignment Tests 1–8
 test/           Jest unit + integration tests against an in-memory fake of Sheets, Mail, Lock and UrlFetch
@@ -46,9 +68,9 @@ test/           Jest unit + integration tests against an in-memory fake of Sheet
 
 ## Quality and security
 
-- **57 automated tests:** unit tests for the scheduling, SLA, holiday and admin rules, and integration tests that drive the whole system (including all 8 assignment scenarios) against a simulated spreadsheet.
+- **67 automated tests:** unit tests for the scheduling, SLA, holiday and admin rules, and integration tests that drive the whole system (including all 8 assignment scenarios) against a simulated spreadsheet.
 - **CI** (GitHub Actions) runs lint, typecheck, unit and integration tests and a dependency audit on every push.
-- **Admin guard:** setup, trigger install, data reset and holiday sync only run for the sheet owner or listed admins. The Config tab is protected.
+- **Role-based access:** every tab has a real protection. Employees can edit only their own My Tasks tab, managers only the dashboard, and admins (owner + ADMIN_EMAILS) everything, including every menu item. The rules re-apply automatically when the Employees or Config tab changes.
 - **Public acknowledgement page:** each item has a random token. Admin functions refuse to run without the spreadsheet UI, and trigger handlers refuse to run without a genuine trigger ID, so the public URL can do nothing except acknowledge.
 - **Hardening:** user text is HTML-escaped. Formula-like input is stored as plain text. The spreadsheet time zone is kept in line with the script's, which fixed a real date-shift bug.
 

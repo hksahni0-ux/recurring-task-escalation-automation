@@ -126,6 +126,14 @@ function requireTrigger_(e, name) {
   if (!isGenuineTrigger_(e)) throw new Error(name + ' only runs from its trigger. Use the ⚙ Ops Automation menu instead.');
 }
 
+function ownerEmail_() {
+  try {
+    return getSpreadsheet_().getOwner().getEmail();
+  } catch (e) {
+    return '';
+  }
+}
+
 /** Admin-only menu items: visible to everyone, but they only run for the owner or ADMIN_EMAILS. */
 function requireAdmin_() {
   var ui = requireUi_();
@@ -149,7 +157,7 @@ function requireAdmin_() {
   }
   if (!isAdminEmail(me, owner, admins)) {
     throw new Error('Only the tool administrator can run this' + (owner ? ' (' + owner + ')' : '') +
-      '. Everyone can use Demo tests and "Run automation now".');
+      '. Ask the sheet owner to add you to Config → ADMIN_EMAILS.');
   }
   return ui;
 }

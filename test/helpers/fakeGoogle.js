@@ -62,8 +62,31 @@ class FakeRange {
 const TZ_OFFSETS = { 'Asia/Kolkata': 330, 'Europe/London': 0, 'America/New_York': -300 };
 const SCRIPT_TZ_OFFSET = 330;
 
+/** Sheet protection: the owner is always an editor and cannot be removed (as in Sheets). */
+class FakeProtection {
+  constructor(sheet) { this.sheet = sheet; this.editors = new Set([sheet.ss.owner]); this.description = ''; }
+  setDescription(d) { this.description = d; return this; }
+  getEditors() { return [...this.editors].map((e) => ({ getEmail: () => e })); }
+  removeEditors(list) { list.forEach((u) => { const e = typeof u === 'string' ? u : u.getEmail(); if (e !== this.sheet.ss.owner) this.editors.delete(e); }); return this; }
+  addEditor(e) {
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(e)) throw new Error('Invalid email: ' + e);
+    this.editors.add(String(e).toLowerCase());
+    return this;
+  }
+  addEditors(list) { list.forEach((e) => this.addEditor(e)); return this; }
+  canDomainEdit() { return false; }
+  setDomainEdit() { return this; }
+  setWarningOnly(w) { this.warningOnly = w; return this; }
+  setUnprotectedRanges(r) { this.unprotected = r; return this; }
+  remove() { this.sheet.protections = this.sheet.protections.filter((p) => p !== this); }
+}
+
 class FakeSheet {
-  constructor(name, ss) { this.name = name; this.ss = ss; this.cells = []; this.notes = {}; }
+  constructor(name, ss) { this.name = name; this.ss = ss; this.cells = []; this.notes = {}; this.protections = []; }
+  protect() { const p = new FakeProtection(this); this.protections.push(p); return p; }
+  getProtections() { return this.protections.slice(); }
+  /** Test helper: who may edit this sheet (null = unprotected). */
+  editorsOf() { const p = this.protections[0]; return p ? [...p.editors].sort() : null; }
   getName() { return this.name; }
   get(r, c) { const row = this.cells[r - 1]; const v = row ? row[c - 1] : undefined; return v === undefined ? '' : v; }
   set(r, c, v) {
@@ -124,6 +147,7 @@ function createFakeGoogle({ uiAvailable = true, spreadsheetTimeZone = 'Asia/Kolk
       getActiveSpreadsheet: () => ss,
       getActive: () => ss,
       openById: () => ss,
+      ProtectionType: { SHEET: 'SHEET', RANGE: 'RANGE' },
       getUi: () => { if (!fake.uiAvailable) throw new Error('Cannot call SpreadsheetApp.getUi() from this context.'); return ui; },
       newDataValidation: () => noop,
       flush: () => {},

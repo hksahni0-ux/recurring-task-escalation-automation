@@ -251,12 +251,11 @@ describe('admin-only menu items', () => {
     expect(JSON.stringify(g.readTable_('Task_Cycles', g.CYCLE_COLS))).toBe(before);
   });
 
-  test('a non-admin can still run the demo tests and the automation', () => {
+  test('a non-admin cannot run the demo or the automation from the menu either', () => {
     const { g, fake } = boot();
     fake.user = 'reviewer@example.com';
-    expect(() => g.runAutomationFromMenu()).not.toThrow();
-    expect(g.runDemoTests_([7])[0].result).toBe('PASS');
-    expect(() => g.exitDemoMode()).not.toThrow();
+    ['runAutomationFromMenu', 'runAllDemoTests', 'runDemoTest1', 'exitDemoMode', 'applyAccessRulesFromMenu']
+      .forEach((fn) => expect(() => g[fn]()).toThrow(/Only the tool administrator/));
   });
 
   test('someone listed in ADMIN_EMAILS can run admin items', () => {
@@ -296,5 +295,74 @@ describe('trigger entry points cannot be called through the public web app', () 
     expect(g.readTable_('Task_Cycles', g.CYCLE_COLS).every((c) => !c.completedAt)).toBe(true);
     g.handleEdit({ range: cell, value: 'TCK-999', triggerUid: 'trig-1' });
     expect(g.readTable_('Task_Cycles', g.CYCLE_COLS).some((c) => c.proof === 'TCK-999')).toBe(true);
+  });
+});
+
+describe('access rules (real protections on every tab)', () => {
+  function bootTeam() {
+    const r = boot();
+    const { g } = r;
+    g.writeTable_('Employees', g.EMPLOYEE_COLS, ['A', 'B', 'C', 'D'].map((x) => ({
+      employeeId: 'E-' + x, name: 'Employee ' + x, email: 'emp.' + x.toLowerCase() + '@example.com', tabName: 'My Tasks - Employee ' + x,
+    })));
+    g.setConfigValue_('MANAGER_EMAIL', 'manager@example.com');
+    g.setConfigValue_('ADMIN_EMAILS', 'reviewer@example.com');
+    r.result = g.applyAccessRules_();
+    return r;
+  }
+
+  test('employees can edit only their own tab; the manager only the dashboard; the rest is admin-only', () => {
+    const { fake, result } = bootTeam();
+    const admins = ['owner@example.com', 'reviewer@example.com'];
+    const ed = (n) => fake.ss.getSheetByName(n).editorsOf();
+    expect(ed('My Tasks - Employee A')).toEqual([...admins, 'emp.a@example.com'].sort());
+    expect(ed('My Tasks - Employee B')).toEqual([...admins, 'emp.b@example.com'].sort());
+    expect(ed('Manager Dashboard')).toEqual([...admins, 'manager@example.com'].sort());
+    ['Task_Master', 'Employees', 'Config', 'Holidays', 'Task_Cycles', 'Alert_Log', 'Test_Log', 'How It Works']
+      .forEach((n) => expect(ed(n)).toEqual(admins));
+    expect(result.problems).toEqual([]);
+  });
+
+  test('every tab has exactly one protection, and none is warning-only or has open ranges', () => {
+    const { fake } = bootTeam();
+    fake.ss.getSheets().filter((sh) => !sh.getName().startsWith('_')).forEach((sh) => {
+      expect([sh.getName(), sh.getProtections().length]).toEqual([sh.getName(), 1]);
+      expect(sh.getProtections()[0].warningOnly).toBeFalsy();
+      expect(sh.getProtections()[0].unprotected).toBeUndefined();
+    });
+  });
+
+  test('re-applying is idempotent', () => {
+    const { g, fake } = bootTeam();
+    g.applyAccessRules_();
+    expect(fake.ss.getSheetByName('My Tasks - Employee A').getProtections()).toHaveLength(1);
+  });
+
+  test('an invalid employee email is reported, not fatal', () => {
+    const { g } = bootTeam();
+    g.writeTable_('Employees', g.EMPLOYEE_COLS, [{ employeeId: 'E-A', name: 'Employee A', email: 'not-an-email', tabName: 'My Tasks - Employee A' }]);
+    const r = g.applyAccessRules_();
+    expect(r.problems.join(' ')).toMatch(/not-an-email/);
+  });
+
+  test('editing the Employees tab re-applies the rules automatically', () => {
+    const { g, fake } = bootTeam();
+    const sh = fake.ss.getSheetByName('Employees');
+    sh.getRange(2, 3).setValue('new.a@example.com');
+    g.handleEdit_({ range: sh.getRange(2, 3), value: 'new.a@example.com' });
+    expect(fake.ss.getSheetByName('My Tasks - Employee A').editorsOf()).toContain('new.a@example.com');
+    expect(fake.ss.getSheetByName('My Tasks - Employee A').editorsOf()).not.toContain('emp.a@example.com');
+  });
+
+  test('an edit outside the input column on an employee tab is undone by a redraw', () => {
+    const { g, fake } = bootTeam();
+    setNow(g, '2026-11-03 10:00');
+    g.runAutomation_();
+    const tab = fake.ss.getSheetByName('My Tasks - Employee B');
+    const cell = tab.getRange(g.EMP_VIEW.HEADER_ROW + 1, 2);
+    const original = cell.getValue();
+    cell.setValue('scribble');
+    g.handleEdit_({ range: cell, value: 'scribble' });
+    expect(tab.getRange(g.EMP_VIEW.HEADER_ROW + 1, 2).getValue()).toBe(original);
   });
 });

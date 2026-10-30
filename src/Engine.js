@@ -203,11 +203,16 @@ function handleEdit_(e) {
   var name = sh.getName();
   if (name === SHEETS.DASHBOARD) handleDashboardEdit_(e, sh);
   else if (name.indexOf(EMPLOYEE_TAB_PREFIX) === 0) handleEmployeeEdit_(e, sh);
+  else if (name === SHEETS.EMPLOYEES || name === SHEETS.CONFIG) withLock_(applyAccessRules_); // roles may have changed
 }
 
 function handleEmployeeEdit_(e, sh) {
   var row = e.range.getRow();
-  if (e.range.getColumn() !== EMP_VIEW.INPUT_COL || e.range.getNumColumns() !== 1 || row <= EMP_VIEW.HEADER_ROW) return;
+  if (e.range.getColumn() !== EMP_VIEW.INPUT_COL || e.range.getNumColumns() !== 1 || row <= EMP_VIEW.HEADER_ROW) {
+    // Only the input column is meaningful; redraw to undo anything typed elsewhere.
+    withLock_(function () { renderAllViews_(loadContext_()); });
+    return;
+  }
   withLock_(function () {
     var ctx = loadContext_();
     if (e.range.getNumRows() !== 1) {

@@ -305,3 +305,31 @@ describe('email subjects name the employee, task and due time', () => {
     expect(g.buildManagerAlertEmail([a], demo, now, '').subject).toMatch(/^\[DEMO\] \[Ops Alert\] Employee A:/);
   });
 });
+
+describe('access plan', () => {
+  const employees = [
+    { employeeId: 'E-A', name: 'Employee A', email: 'a@x.com', tabName: 'My Tasks - Employee A' },
+    { employeeId: 'E-B', name: 'Employee B', email: 'B@x.com ', tabName: 'My Tasks - Employee B' },
+  ];
+  const plan = g.buildAccessPlan(employees, 'owner@x.com, admin2@x.com', 'mgr@x.com, mgr2@x.com');
+  const editorsOf = (sheet) => plan.find((p) => p.sheet === sheet).editors;
+
+  test('each employee tab: admins + that employee only', () => {
+    expect(editorsOf('My Tasks - Employee A')).toEqual(['owner@x.com', 'admin2@x.com', 'a@x.com']);
+    expect(editorsOf('My Tasks - Employee B')).toEqual(['owner@x.com', 'admin2@x.com', 'b@x.com']);
+  });
+
+  test('dashboard: admins + managers', () => {
+    expect(editorsOf('Manager Dashboard')).toEqual(['owner@x.com', 'admin2@x.com', 'mgr@x.com', 'mgr2@x.com']);
+  });
+
+  test('every other tab is admin-only', () => {
+    ['How It Works', 'Task_Master', 'Employees', 'Config', 'Holidays', 'Task_Cycles', 'Alert_Log', 'Test_Log']
+      .forEach((n) => expect(editorsOf(n)).toEqual(['owner@x.com', 'admin2@x.com']));
+  });
+
+  test('an admin who is also an employee is listed once', () => {
+    const p = g.buildAccessPlan([{ ...employees[0], email: 'OWNER@x.com' }], 'owner@x.com', '');
+    expect(p.find((x) => x.sheet === 'My Tasks - Employee A').editors).toEqual(['owner@x.com']);
+  });
+});

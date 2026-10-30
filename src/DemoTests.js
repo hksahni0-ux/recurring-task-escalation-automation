@@ -20,18 +20,18 @@ var DEMO_TESTS = [
 
 // ---------------------------------------------------------------- menu entry points
 
-function runAllDemoTests() { requireUi_(); showDemoResults_(runDemoTests_(null)); }
-function runDemoTest1() { requireUi_(); showDemoResults_(runDemoTests_([1])); }
-function runDemoTest2() { requireUi_(); showDemoResults_(runDemoTests_([2])); }
-function runDemoTest3() { requireUi_(); showDemoResults_(runDemoTests_([3])); }
-function runDemoTest4() { requireUi_(); showDemoResults_(runDemoTests_([4])); }
-function runDemoTest5() { requireUi_(); showDemoResults_(runDemoTests_([5])); }
-function runDemoTest6() { requireUi_(); showDemoResults_(runDemoTests_([6])); }
-function runDemoTest7() { requireUi_(); showDemoResults_(runDemoTests_([7])); }
-function runDemoTest8() { requireUi_(); showDemoResults_(runDemoTests_([8])); }
+function runAllDemoTests() { requireAdmin_(); showDemoResults_(runDemoTests_(null)); }
+function runDemoTest1() { requireAdmin_(); showDemoResults_(runDemoTests_([1])); }
+function runDemoTest2() { requireAdmin_(); showDemoResults_(runDemoTests_([2])); }
+function runDemoTest3() { requireAdmin_(); showDemoResults_(runDemoTests_([3])); }
+function runDemoTest4() { requireAdmin_(); showDemoResults_(runDemoTests_([4])); }
+function runDemoTest5() { requireAdmin_(); showDemoResults_(runDemoTests_([5])); }
+function runDemoTest6() { requireAdmin_(); showDemoResults_(runDemoTests_([6])); }
+function runDemoTest7() { requireAdmin_(); showDemoResults_(runDemoTests_([7])); }
+function runDemoTest8() { requireAdmin_(); showDemoResults_(runDemoTests_([8])); }
 
 function exitDemoMode() {
-  requireUi_();
+  requireAdmin_();
   exitDemoMode_();
   SpreadsheetApp.getUi().alert('Demo mode ended. Live data restored and the real clock is back in use.');
 }
