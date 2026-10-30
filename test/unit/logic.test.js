@@ -333,3 +333,20 @@ describe('access plan', () => {
     expect(p.find((x) => x.sheet === 'My Tasks - Employee A').editors).toEqual(['owner@x.com']);
   });
 });
+
+describe('describeRoles', () => {
+  const employees = [{ name: 'Employee A', email: 'a@x.com' }, { name: 'Employee B', email: 'b@x.com' }];
+  const roles = (email, admins = '', managers = 'm@x.com') => g.describeRoles(email, 'owner@x.com', admins, managers, employees);
+
+  test('names every role an account holds', () => {
+    expect(roles('owner@x.com')).toEqual(['Owner (admin)']);
+    expect(roles('A@x.com', 'a@x.com')).toEqual(['Admin', 'Employee: Employee A']);
+    expect(roles('m@x.com')).toEqual(['Manager']);
+    expect(roles('b@x.com')).toEqual(['Employee: Employee B']);
+  });
+
+  test('an unknown or blank account has no edit rights', () => {
+    expect(roles('stranger@x.com')).toEqual([]);
+    expect(roles('')).toEqual([]);
+  });
+});

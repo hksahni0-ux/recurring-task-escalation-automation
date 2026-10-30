@@ -330,6 +330,19 @@ function isAdminEmail(email, ownerEmail, adminList) {
   return admins.indexOf(me) !== -1;
 }
 
+/** Every role `email` holds, e.g. ['Admin', 'Employee: Employee A']; empty means view-only. */
+function describeRoles(email, ownerEmail, adminList, managerList, employees) {
+  var me = String(email || '').trim().toLowerCase();
+  if (!me) return [];
+  var inList = function (list) { return String(list || '').split(',').map(function (x) { return x.trim().toLowerCase(); }).indexOf(me) !== -1; };
+  var roles = [];
+  if (me === String(ownerEmail || '').trim().toLowerCase()) roles.push('Owner (admin)');
+  else if (inList(adminList)) roles.push('Admin');
+  if (inList(managerList)) roles.push('Manager');
+  employees.forEach(function (e) { if (inList(e.email)) roles.push('Employee: ' + e.name); });
+  return roles;
+}
+
 /**
  * Who may edit each tab: employees only their own My Tasks tab, managers only the dashboard,
  * admins everything. Emails are lower-cased and de-duplicated, admins first.

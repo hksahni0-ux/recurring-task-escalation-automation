@@ -36,3 +36,20 @@ function applyAccessRulesFromMenu() {
     '• Admins (owner + Config → ADMIN_EMAILS) can edit everything\n\nEveryone with access can still view every tab.' +
     (r.problems.length ? '\n\nCould not add:\n' + r.problems.join('\n') : ''));
 }
+
+/** Open to everyone: shows which account the script is really running as, and what it may do. */
+function showMyAccess() {
+  var ui = requireUi_();
+  var me = '';
+  try {
+    me = Session.getEffectiveUser().getEmail();
+  } catch (e) {
+    // Unknown identity: reported below.
+  }
+  var s = loadConfig_();
+  var roles = describeRoles(me, ownerEmail_(), s.adminEmails, s.managerEmail, readTable_(SHEETS.EMPLOYEES, EMPLOYEE_COLS));
+  ui.alert('Who am I?', 'The script is running as: ' + (me || 'unknown account') + '\n\n' +
+    (roles.length ? 'Role: ' + roles.join(', ') : 'Role: none. This account has no edit rights and cannot use admin menu items.') +
+    '\n\nIf this is not the account shown at the top right of the sheet, your browser is signed in to several Google accounts and ' +
+    'Google runs scripts as the default one. Use a private window signed in to a single account to test another role.', ui.ButtonSet.OK);
+}

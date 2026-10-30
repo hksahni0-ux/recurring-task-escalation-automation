@@ -132,4 +132,4 @@ The tests run the real code paths (time-trigger run, employee edit, dashboard ed
 | 7 | SLA boundaries | Each rule checked one minute before and at its deadline; holiday shift; no repeats |
 | 8 | Run automation 3× at each stage; enter completion twice | 1 manager email, 1 leadership email, unique cycle IDs, completion recorded once |
 
-The same logic is also covered by 67 automated tests in Node (`npm run test:all`), run in CI on every push.
+The same logic is also covered by 70 automated tests in Node (`npm run test:all`), run in CI on every push.

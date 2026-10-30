@@ -19,6 +19,8 @@ function onOpen() {
     .addSeparator()
     .addItem('Exit demo mode (restore live data)', 'exitDemoMode');
   SpreadsheetApp.getUi().createMenu('⚙ Ops Automation')
+    .addItem('Who am I? (my access)', 'showMyAccess')
+    .addSeparator()
     .addItem('Run automation now', 'runAutomationFromMenu')
     .addSubMenu(demo)
     .addSeparator()

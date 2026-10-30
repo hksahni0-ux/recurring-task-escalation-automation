@@ -366,3 +366,18 @@ describe('access rules (real protections on every tab)', () => {
     expect(tab.getRange(g.EMP_VIEW.HEADER_ROW + 1, 2).getValue()).toBe(original);
   });
 });
+
+describe('Who am I?', () => {
+  test('anyone can run it; it reports the running account and its role', () => {
+    const { g, fake } = boot();
+    const shown = [];
+    fake.ui.alert = (title, msg) => { shown.push(`${title}\n${msg}`); return 'OK'; };
+    fake.user = 'stranger@example.com';
+    g.showMyAccess();
+    expect(shown[0]).toMatch(/stranger@example\.com/);
+    expect(shown[0]).toMatch(/no edit rights/i);
+    fake.user = 'owner@example.com';
+    g.showMyAccess();
+    expect(shown[1]).toMatch(/Owner \(admin\)/);
+  });
+});
