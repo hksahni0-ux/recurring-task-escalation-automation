@@ -68,7 +68,7 @@ test/           Jest unit + integration tests against an in-memory fake of Sheet
 
 ## Quality and security
 
-- **100 automated tests:** unit tests for the scheduling, SLA, holiday and admin rules, and integration tests that drive the whole system (including all 8 assignment scenarios) against a simulated spreadsheet.
+- **101 automated tests:** unit tests for the scheduling, SLA, holiday and admin rules, and integration tests that drive the whole system (including all 8 assignment scenarios) against a simulated spreadsheet.
 - **CI** (GitHub Actions) runs lint, typecheck, unit and integration tests and a dependency audit on every push.
 - **Role-based access:** every tab has a real protection. Employees can edit only their own My Tasks tab, managers only the dashboard, and admins (owner + ADMIN_EMAILS) everything, including every menu item. The rules re-apply automatically when the Employees or Config tab changes.
 - **Public acknowledgement page:** each item has a random token. Admin functions refuse to run without the spreadsheet UI, and trigger handlers refuse to run without a genuine trigger ID, so the public URL can do nothing except acknowledge.

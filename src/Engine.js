@@ -82,8 +82,9 @@ function applyPauseState_(ctx) {
 }
 
 /**
- * Removes open cycles that start before their task's start date (the date was moved later after the task
- * went live), unless someone already acted on them: completed cycles and alerted ones are kept as history.
+ * Removes untouched cycles that should not exist: ones starting in the future (left over from older versions),
+ * or before their task's start date (the date was moved later after the task went live). Completed and
+ * alerted cycles are always kept as history.
  */
 function withdrawEarlyCycles_(ctx) {
   var byId = {};
@@ -92,7 +93,8 @@ function withdrawEarlyCycles_(ctx) {
   ctx.cycles = ctx.cycles.filter(function (c) {
     var t = byId[c.taskId];
     if (!t || c.completedAt || c.managerAlertedAt || !isDate(c.start)) return true;
-    return startOfDay(c.start) >= startOfDay(t.startDate);
+    // Future cycles are never stored (they open when their period starts), and none may precede the task's start.
+    return startOfDay(c.start) >= startOfDay(t.startDate) && startOfDay(c.start) <= startOfDay(ctx.now);
   });
   return before - ctx.cycles.length;
 }

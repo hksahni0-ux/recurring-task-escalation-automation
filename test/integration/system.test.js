@@ -612,3 +612,18 @@ describe('employee tab after completing a task', () => {
     expect(g.findRowByValue_(tab, 1, 'T-002-20261109')).toBeGreaterThan(g.EMP_VIEW.HEADER_ROW);
   });
 });
+
+describe('future cycles left over from before (cleanup)', () => {
+  test('an untouched cycle whose period has not started is removed on the next run', () => {
+    const { g } = boot();
+    setNow(g, '2026-11-04 10:00');
+    g.runAutomation_();
+    const ctx = g.loadContext_();
+    const task = ctx.tasks.find((t) => t.taskId === 'T-002');
+    const future = g.newCycleRecord_(ctx, task, g.cycleForDate(task, g.parseDateTime('2026-11-09'), ctx.settings));
+    g.writeTable_('Task_Cycles', g.CYCLE_COLS, ctx.cycles.concat([future]));
+    expect(g.readTable_('Task_Cycles', g.CYCLE_COLS).some((c) => c.status === 'Upcoming')).toBe(true);
+    g.runAutomation_();
+    expect(g.readTable_('Task_Cycles', g.CYCLE_COLS).some((c) => c.cycleId === 'T-002-20261109')).toBe(false);
+  });
+});
