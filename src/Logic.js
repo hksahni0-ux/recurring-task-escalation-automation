@@ -8,7 +8,7 @@ var MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep'
 var MS_PER_MINUTE = 60000;
 var MS_PER_DAY = 86400000;
 
-var STATUS = { UPCOMING: 'Upcoming', PENDING: 'Pending', OVERDUE: 'Overdue', COMPLETED: 'Completed' };
+var STATUS = { UPCOMING: 'Upcoming', PENDING: 'Pending', OVERDUE: 'Overdue', COMPLETED: 'Completed', CANCELLED: 'Cancelled' };
 var PROOF = { TICKET: 'TICKET', DAILY_UPDATE: 'DAILY_UPDATE' };
 var ACTION = { NONE: 'NONE', MANAGER_ALERT: 'MANAGER_ALERT', LEADERSHIP_ESCALATION: 'LEADERSHIP_ESCALATION' };
 var LEADERSHIP_HELP_ACTION = 'Blocked: needs leadership help';
@@ -201,6 +201,7 @@ function cyclesToCreate(tasks, existingIds, now, s) {
 }
 
 function cycleStatus(c, now) {
+  if (c.cancelledAt) return STATUS.CANCELLED;
   if (c.completedAt) return STATUS.COMPLETED;
   if (now < startOfDay(c.start)) return STATUS.UPCOMING;
   if (now > c.dueAt) return STATUS.OVERDUE;
@@ -250,7 +251,7 @@ function slaDeadlines(c, s) {
  */
 function evaluateEscalation(c, now, s) {
   var none = { action: ACTION.NONE, reason: '' };
-  if (c.completedAt || now < c.dueAt) return none;
+  if (c.cancelledAt || c.completedAt || now < c.dueAt) return none;
   var d = slaDeadlines(c, s);
   if (!c.managerAlertedAt) {
     return now >= d.managerAlertAt ? { action: ACTION.MANAGER_ALERT, reason: 'Not completed by ' + fmtDateTime(c.dueAt) } : none;
@@ -456,11 +457,11 @@ function buildAccessPlan(employees, adminList, managerList) {
 
 // ---------------------------------------------------------------- views
 
-var STATUS_ORDER_ = { Overdue: 0, Pending: 1, Upcoming: 2, Completed: 3 };
+var STATUS_ORDER_ = { Overdue: 0, Pending: 1, Upcoming: 2, Completed: 3, Cancelled: 4 };
 
 /** Rows for an employee's "My Tasks" tab: open work, then upcoming, then the latest completions. */
 function selectEmployeeView(cycles, now, completedLimit) {
-  var withStatus = cycles.map(function (c) { return { c: c, st: cycleStatus(c, now) }; });
+  var withStatus = cycles.filter(function (c) { return !c.cancelledAt; }).map(function (c) { return { c: c, st: cycleStatus(c, now) }; });
   var open = withStatus.filter(function (x) { return x.st !== STATUS.COMPLETED; }).sort(function (a, b) {
     return STATUS_ORDER_[a.st] - STATUS_ORDER_[b.st] || a.c.dueAt - b.c.dueAt;
   });
@@ -474,6 +475,7 @@ function selectEmployeeView(cycles, now, completedLimit) {
 function selectExceptions(cycles, now) {
   var weekAgo = addDays(now, -7);
   return cycles.filter(function (c) {
+    if (c.cancelledAt) return false;
     var st = cycleStatus(c, now);
     if (st === STATUS.OVERDUE) return true;
     return !!c.managerAlertedAt && (!c.completedAt || c.completedAt >= weekAgo);
@@ -489,8 +491,8 @@ function summarizeTeam(employees, cycles, now) {
       name: e.name,
       pending: count(function (c) { return cycleStatus(c, now) === STATUS.PENDING; }),
       overdue: count(function (c) { return cycleStatus(c, now) === STATUS.OVERDUE; }),
-      awaitingAck: count(function (c) { return c.managerAlertedAt && !c.managerAckAt && !c.completedAt; }),
-      escalatedOpen: count(function (c) { return c.leadershipEscalatedAt && !c.completedAt; }),
+      awaitingAck: count(function (c) { return c.managerAlertedAt && !c.managerAckAt && !c.completedAt && !c.cancelledAt; }),
+      escalatedOpen: count(function (c) { return c.leadershipEscalatedAt && !c.completedAt && !c.cancelledAt; }),
       completed7d: count(function (c) { return c.completedAt && c.completedAt >= weekAgo; })
     };
   });

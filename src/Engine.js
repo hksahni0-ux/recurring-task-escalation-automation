@@ -54,6 +54,33 @@ function syncOpenCycles_(ctx) {
   });
 }
 
+var PAUSED_RESOLUTION = 'Cancelled: task paused';
+
+/**
+ * Pausing a task (Active unticked) cancels its open cycles: they leave every view and never alert, but stay
+ * in Task_Cycles as a record. Resuming within the same period reopens that period's cycle; a later period
+ * simply starts afresh.
+ */
+function applyPauseState_(ctx) {
+  var byId = {};
+  ctx.tasks.forEach(function (t) { byId[t.taskId] = t; });
+  var today = startOfDay(ctx.now);
+  ctx.cycles.forEach(function (c) {
+    var t = byId[c.taskId];
+    if (!t || c.completedAt) return;
+    if (!isActive(t.active)) {
+      if (!c.cancelledAt) {
+        c.cancelledAt = ctx.now;
+        c.resolution = PAUSED_RESOLUTION;
+      }
+    } else if (c.cancelledAt && c.resolution === PAUSED_RESOLUTION && isDate(c.start) && isDate(c.periodEnd) &&
+        startOfDay(c.start) <= today && today <= startOfDay(c.periodEnd)) {
+      c.cancelledAt = '';
+      c.resolution = '';
+    }
+  });
+}
+
 /**
  * Removes open cycles that start before their task's start date (the date was moved later after the task
  * went live), unless someone already acted on them: completed cycles and alerted ones are kept as history.
@@ -99,6 +126,7 @@ function runAutomation_() {
     var ctx = loadContext_();
     withdrawEarlyCycles_(ctx);
     syncOpenCycles_(ctx);
+    applyPauseState_(ctx);
     var created = ensureCurrentCycles_(ctx);
     ctx.cycles.forEach(function (c) { c.status = cycleStatus(c, ctx.now); });
     saveCycles_(ctx);
@@ -197,6 +225,7 @@ function completeCycleCore_(ctx, cycleId, rawProof, by, employeeId) {
   var c = findById_(ctx.cycles, 'cycleId', cycleId);
   if (!c) return { ok: false, error: 'Unknown task cycle ' + cycleId + '.' };
   if (employeeId && c.employeeId !== employeeId) return { ok: false, error: cycleId + ' is not assigned to you.' };
+  if (c.cancelledAt) return { ok: false, error: 'This task was paused, so this cycle was cancelled. Nothing to do.' };
   if (c.completedAt) {
     return { ok: false, duplicate: true, error: 'Already completed on ' + fmtDateTime(c.completedAt) + ' by ' + c.completedBy + '. Nothing more to do.' };
   }

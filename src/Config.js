@@ -38,7 +38,7 @@ var CYCLE_COLS = [
   ['completedBy', 'Completed By'], ['resolution', 'Resolution'], ['managerAlertedAt', 'Manager Alerted At'],
   ['ackToken', 'Ack Token'], ['managerAckAt', 'Manager Ack At'], ['managerAckBy', 'Manager Ack By'],
   ['managerAction', 'Manager Action'], ['managerNote', 'Manager Note'], ['leadershipEscalatedAt', 'Leadership Escalated At'],
-  ['escalationReason', 'Escalation Reason'], ['createdAt', 'Created At']
+  ['escalationReason', 'Escalation Reason'], ['createdAt', 'Created At'], ['cancelledAt', 'Cancelled At']
 ];
 
 var ALERT_COLS = [

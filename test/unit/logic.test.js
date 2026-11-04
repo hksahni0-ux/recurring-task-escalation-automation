@@ -454,3 +454,23 @@ describe('prepareTaskRows: scheduled tasks and last completion', () => {
     expect(t.setupCheck).not.toMatch(/Last done/);
   });
 });
+
+describe('cancelled cycles (task paused)', () => {
+  const s = settings();
+  const base = g.cycleForDate(daily, D('2026-11-03'), s);
+  const cancelled = { ...base, cancelledAt: D('2026-11-03 12:00'), managerAlertedAt: '' };
+  const now = D('2026-11-04 13:00');
+
+  test('status is Cancelled and it never alerts or escalates', () => {
+    expect(g.cycleStatus(cancelled, now)).toBe('Cancelled');
+    expect(g.evaluateEscalation(cancelled, now, s).action).toBe('NONE');
+    expect(g.evaluateEscalation({ ...cancelled, managerAlertedAt: D('2026-11-03 18:35') }, now, s).action).toBe('NONE');
+  });
+
+  test('it is left out of the employee view, the exceptions and the team counts', () => {
+    const c = { ...cancelled, employeeId: 'E-A', managerAlertedAt: D('2026-11-03 18:35') };
+    expect(g.selectEmployeeView([c], now, 5)).toEqual([]);
+    expect(g.selectExceptions([c], now)).toEqual([]);
+    expect(g.summarizeTeam([{ employeeId: 'E-A', name: 'A' }], [c], now)[0]).toMatchObject({ pending: 0, overdue: 0, awaitingAck: 0, escalatedOpen: 0 });
+  });
+});

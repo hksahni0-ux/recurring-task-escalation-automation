@@ -532,3 +532,64 @@ describe('reassigning a task in Task_Master (regression)', () => {
     expect(g.readTable_('Task_Cycles', g.CYCLE_COLS).find((c) => c.taskId === 'T-005').taskName).toBe('Vendor reconciliation');
   });
 });
+
+describe('pausing a task cancels its open cycle', () => {
+  const taskRow = (g, fake, id) => g.findRowByValue_(fake.ss.getSheetByName('Task_Master'), 1, id);
+  const setActive = (g, fake, id, v) => {
+    const sh = fake.ss.getSheetByName('Task_Master');
+    const r = sh.getRange(taskRow(g, fake, id), 8);
+    r.setValue(v);
+    g.handleEdit_({ range: r });
+  };
+  const cycle = (g, id) => g.readTable_('Task_Cycles', g.CYCLE_COLS).find((c) => c.cycleId === id);
+  const onTab = (g, fake, emp, id) => g.findRowByValue_(fake.ss.getSheetByName('My Tasks - ' + emp), 1, id) > g.EMP_VIEW.HEADER_ROW;
+
+  test('the open cycle is cancelled, disappears, never alerts, and stays on record', () => {
+    const { g, fake } = boot();
+    setNow(g, '2026-11-03 18:40');
+    g.runAutomation_(); // T-001's daily cycle is overdue and the manager has been alerted
+    const id = 'T-001-20261103';
+    expect(cycle(g, id).managerAlertedAt).not.toBe('');
+    setActive(g, fake, 'T-001', false);
+    expect(cycle(g, id)).toMatchObject({ status: 'Cancelled', resolution: 'Cancelled: task paused' });
+    expect(onTab(g, fake, 'Employee A', id)).toBe(false);
+    expect(g.findRowByValue_(fake.ss.getSheetByName('Manager Dashboard'), 1, id)).toBe(0);
+    const sent = fake.outbox.length;
+    setNow(g, '2026-11-04 12:30'); // past the ack deadline: would have escalated
+    g.runAutomation_();
+    expect(fake.outbox.length).toBe(sent);
+    expect(g.readTable_('Task_Cycles', g.CYCLE_COLS).filter((c) => c.taskId === 'T-001' && c.status !== 'Cancelled')).toEqual([]);
+  });
+
+  test('a cancelled cycle cannot be completed', () => {
+    const { g, fake } = boot();
+    setNow(g, '2026-11-03 10:00');
+    g.runAutomation_();
+    setActive(g, fake, 'T-002', false);
+    const ctx = g.loadContext_();
+    const res = g.completeCycleCore_(ctx, 'T-002-20261102', 'TCK-1', 'x', 'E-B');
+    expect(res.ok).toBe(false);
+    expect(res.error).toMatch(/paused/);
+  });
+
+  test('resuming in the same period reopens the cycle', () => {
+    const { g, fake } = boot();
+    setNow(g, '2026-11-03 10:00');
+    g.runAutomation_();
+    setActive(g, fake, 'T-002', false);
+    setActive(g, fake, 'T-002', true);
+    expect(cycle(g, 'T-002-20261102')).toMatchObject({ status: 'Pending', cancelledAt: '', resolution: '' });
+    expect(onTab(g, fake, 'Employee B', 'T-002-20261102')).toBe(true);
+  });
+
+  test('resuming in a later period starts that period afresh', () => {
+    const { g, fake } = boot();
+    setNow(g, '2026-11-03 10:00');
+    g.runAutomation_();
+    setActive(g, fake, 'T-002', false);
+    setNow(g, '2026-11-10 09:00');
+    setActive(g, fake, 'T-002', true);
+    expect(cycle(g, 'T-002-20261102').status).toBe('Cancelled');
+    expect(cycle(g, 'T-002-20261109').status).toBe('Pending');
+  });
+});

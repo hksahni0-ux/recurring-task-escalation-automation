@@ -41,6 +41,7 @@ Task_Master ──(hourly / 07:00 run)──► Task_Cycles: one row per cycle, 
 - A daily task (*N* = 1) gets a cycle on every working day only.
 - Cycles are **anchored on the start date**, so completing late never shifts future due dates. Nobody calculates a next due date by hand.
 - When a cycle is completed, the next cycle is created at once (shown as *Upcoming*). The hourly run also creates any cycle whose period has started. The ID `TaskID-YYYYMMDD` is deterministic, so a cycle can never exist twice.
+- **Managing tasks:** a manager adds a task as a new Task_Master row, which goes live at once. A future Start Date keeps it hidden from the employee until that day. Changing Assigned To or the Task Name moves the task's open cycles. **Pausing** (unticking Active) cancels the open cycle, which disappears from every view and never alerts but stays in Task_Cycles as a record. Resuming within the same period reopens it.
 
 ## 4. Single-point completion
 
@@ -132,4 +133,4 @@ The tests run the real code paths (time-trigger run, employee edit, dashboard ed
 | 7 | SLA boundaries | Each rule checked one minute before and at its deadline; holiday shift; no repeats |
 | 8 | Run automation 3× at each stage; enter completion twice | 1 manager email, 1 leadership email, unique cycle IDs, completion recorded once |
 
-The same logic is also covered by 91 automated tests in Node (`npm run test:all`), run in CI on every push.
+The same logic is also covered by 97 automated tests in Node (`npm run test:all`), run in CI on every push.
