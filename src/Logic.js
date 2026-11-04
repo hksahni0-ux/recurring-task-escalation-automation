@@ -283,7 +283,7 @@ function pad3_(n) {
  * Completes rows typed into Task_Master (Task ID, start date, Active, proof type and
  * instructions; employee by ID or name) and sets each row's `setupCheck` message.
  */
-function prepareTaskRows(rows, employees, now, s) {
+function prepareTaskRows(rows, employees, now, s, cycles) {
   var lower = function (v) { return String(v === null || v === undefined ? '' : v).trim().toLowerCase(); };
   var maxN = 0;
   rows.forEach(function (r) {
@@ -326,17 +326,42 @@ function prepareTaskRows(rows, employees, now, s) {
     if (problem) t.setupCheck = '❌ ' + problem;
     else if (!isActive(t.active)) t.setupCheck = '⏸ Paused (Active is unticked)';
     else {
-      var c = cycleForDate(t, now < t.startDate ? t.startDate : now, s);
-      if (!c) c = nextCycleAfter(t, buildCycle_(t, startOfDay(now < t.startDate ? t.startDate : now), startOfDay(now < t.startDate ? t.startDate : now), s), s);
-      t.setupCheck = '✅ Live: next due ' + fmtDateTime(c.dueAt);
+      var future = startOfDay(now) < startOfDay(t.startDate);
+      var from = startOfDay(future ? t.startDate : now);
+      var c = cycleForDate(t, from, s) || nextCycleAfter(t, buildCycle_(t, from, from, s), s);
+      t.setupCheck = future
+        ? '🗓 Scheduled: starts ' + fmtDate(t.startDate) + ', first due ' + fmtDateTime(c.dueAt) + ' (hidden from the employee until then)'
+        : '✅ Live: next due ' + fmtDateTime(c.dueAt);
     }
+    if (!problem) t.setupCheck += lastDoneText_(t.taskId, cycles || []);
     return t;
   });
 }
 
-/** Rows the scheduler may use: live or paused (paused tasks still close their open cycles). */
+/** Rows the scheduler may use: live, scheduled or paused (paused tasks still close their open cycles). */
 function isUsableTask(t) {
-  return /^(✅|⏸)/.test(String(t.setupCheck || ''));
+  return /^(✅|🗓|⏸)/.test(String(t.setupCheck || ''));
+}
+
+var TIMELINESS_ = {
+  'Completed on time': 'on time',
+  'Completed late (before manager alert)': 'late',
+  'Completed after manager alert': 'after a manager alert',
+  'Completed after leadership escalation': 'after escalation'
+};
+
+/** " · Last done Tue 03 Nov 2026 by Employee A (TCK-7001), on time", or '' if never completed. */
+function lastDoneText_(taskId, cycles) {
+  /** @type {any} */
+  var last = null;
+  cycles.forEach(function (c) {
+    if (c.taskId === taskId && isDate(c.completedAt) && (!last || c.completedAt > last.completedAt)) last = c;
+  });
+  if (!last) return '';
+  var proof = String(last.proof || '');
+  if (proof.length > 32) proof = proof.slice(0, 31).replace(/[\s,.;:]+$/, '') + '…';
+  return ' · Last done ' + fmtDate(last.completedAt) + ' by ' + last.employeeName + (proof ? ' (' + proof + ')' : '') +
+    (TIMELINESS_[last.resolution] ? ', ' + TIMELINESS_[last.resolution] : '');
 }
 
 // ---------------------------------------------------------------- holidays

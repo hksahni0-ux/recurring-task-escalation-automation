@@ -420,3 +420,115 @@ describe('a manager adds a task in Task_Master', () => {
     expect(() => g.runAutomation_()).not.toThrow();
   });
 });
+
+describe('scheduling a task for later', () => {
+  function addRow(g, fake, values) {
+    const sh = fake.ss.getSheetByName('Task_Master');
+    const row = sh.getLastRow() + 1;
+    values.forEach(([col, v]) => sh.getRange(row, col).setValue(v));
+    g.handleEdit_({ range: sh.getRange(row, values[values.length - 1][0]) });
+    return row;
+  }
+  const cyclesOf = (g, id) => g.readTable_('Task_Cycles', g.CYCLE_COLS).filter((c) => c.taskId === id);
+
+  test('a future start date creates nothing on the employee tab until that day', () => {
+    const { g, fake } = boot();
+    setNow(g, '2026-11-04 15:00');
+    const row = addRow(g, fake, [[2, 'Quarterly audit prep'], [3, 'E-A'], [4, 7], [7, g.parseDateTime('2026-11-09')]]);
+    expect(fake.ss.getSheetByName('Task_Master').getRange(row, 9).getValue()).toMatch(/^🗓 Scheduled: starts Mon 09 Nov 2026/);
+    expect(cyclesOf(g, 'T-005')).toHaveLength(0);
+    setNow(g, '2026-11-09 08:00');
+    g.runAutomation_();
+    expect(cyclesOf(g, 'T-005').map((c) => c.cycleId)).toEqual(['T-005-20261109']);
+  });
+
+  test('typing the employee before the future date: the early cycle is withdrawn', () => {
+    const { g, fake } = boot();
+    setNow(g, '2026-11-04 15:00');
+    const row = addRow(g, fake, [[2, 'Quarterly audit prep'], [3, 'E-A'], [4, 7]]);
+    expect(cyclesOf(g, 'T-005')).toHaveLength(1); // went live today
+    const sh = fake.ss.getSheetByName('Task_Master');
+    sh.getRange(row, 7).setValue(g.parseDateTime('2026-11-09'));
+    g.handleEdit_({ range: sh.getRange(row, 7) });
+    expect(cyclesOf(g, 'T-005')).toHaveLength(0);
+    expect(g.findRowByValue_(fake.ss.getSheetByName('My Tasks - Employee A'), 2, 'Quarterly audit prep')).toBe(0);
+  });
+
+  test('a cycle someone already acted on is never withdrawn', () => {
+    const { g, fake } = boot();
+    setNow(g, '2026-11-04 15:00');
+    const row = addRow(g, fake, [[2, 'Quarterly audit prep'], [3, 'E-A'], [4, 7]]);
+    const id = cyclesOf(g, 'T-005')[0].cycleId;
+    const tab = fake.ss.getSheetByName('My Tasks - Employee A');
+    const cell = tab.getRange(g.findRowByValue_(tab, 1, id), g.EMP_VIEW.INPUT_COL);
+    cell.setValue('TCK-1');
+    g.handleEdit_({ range: cell });
+    const sh = fake.ss.getSheetByName('Task_Master');
+    sh.getRange(row, 7).setValue(g.parseDateTime('2026-11-09'));
+    g.handleEdit_({ range: sh.getRange(row, 7) });
+    expect(cyclesOf(g, 'T-005').find((c) => c.cycleId === id).proof).toBe('TCK-1');
+  });
+
+  test('completing a task updates its Task_Master status at once', () => {
+    const { g, fake } = boot();
+    setNow(g, '2026-11-04 15:00');
+    g.runAutomation_();
+    const c = cyclesOf(g, 'T-002')[0];
+    const tab = fake.ss.getSheetByName('My Tasks - Employee B');
+    const cell = tab.getRange(g.findRowByValue_(tab, 1, c.cycleId), g.EMP_VIEW.INPUT_COL);
+    cell.setValue('TCK-7001');
+    g.handleEdit_({ range: cell });
+    const status = fake.ss.getSheetByName('Task_Master').getRange(g.findRowByValue_(fake.ss.getSheetByName('Task_Master'), 1, 'T-002'), 9).getValue();
+    expect(status).toMatch(/Last done Wed 04 Nov 2026 by Employee B \(TCK-7001\), on time$/);
+  });
+});
+
+describe('reassigning a task in Task_Master (regression)', () => {
+  // Reported: a task moved from Employee A to Employee D stayed on A's tab and never reached D's.
+  function addRow(g, fake, values) {
+    const sh = fake.ss.getSheetByName('Task_Master');
+    const row = sh.getLastRow() + 1;
+    values.forEach(([col, v]) => sh.getRange(row, col).setValue(v));
+    g.handleEdit_({ range: sh.getRange(row, values[values.length - 1][0]) });
+    return row;
+  }
+  const tabHas = (fake, emp, id) => {
+    const sh = fake.ss.getSheetByName('My Tasks - ' + emp);
+    const vals = sh.getRange(1, 1, Math.max(sh.getLastRow(), 1), 1).getValues().map((r) => r[0]);
+    return vals.includes(id);
+  };
+
+  test('the open cycle moves to the new employee; completed history stays put', () => {
+    const { g, fake } = boot();
+    setNow(g, '2026-11-04 15:00');
+    const row = addRow(g, fake, [[2, 'Vendor reconciliation'], [3, 'Employee A'], [4, 1]]);
+    const today = g.readTable_('Task_Cycles', g.CYCLE_COLS).find((c) => c.taskId === 'T-005');
+    // Employee A completes today's cycle, which opens tomorrow's.
+    const tabA = fake.ss.getSheetByName('My Tasks - Employee A');
+    const cell = tabA.getRange(g.findRowByValue_(tabA, 1, today.cycleId), g.EMP_VIEW.INPUT_COL);
+    cell.setValue('VR-1');
+    g.handleEdit_({ range: cell });
+
+    const sh = fake.ss.getSheetByName('Task_Master');
+    sh.getRange(row, 3).setValue('Employee D');
+    g.handleEdit_({ range: sh.getRange(row, 3) });
+
+    const cycles = g.readTable_('Task_Cycles', g.CYCLE_COLS).filter((c) => c.taskId === 'T-005');
+    const open = cycles.find((c) => !c.completedAt);
+    const done = cycles.find((c) => c.completedAt);
+    expect([open.employeeId, open.employeeName]).toEqual(['E-D', 'Employee D']);
+    expect([done.employeeId, done.employeeName]).toEqual(['E-A', 'Employee A']);
+    expect(tabHas(fake, 'Employee D', open.cycleId)).toBe(true);
+    expect(tabHas(fake, 'Employee A', open.cycleId)).toBe(false);
+  });
+
+  test('renaming a task updates its open cycles too', () => {
+    const { g, fake } = boot();
+    setNow(g, '2026-11-04 15:00');
+    const row = addRow(g, fake, [[2, 'Vendor recon'], [3, 'Employee A'], [4, 7]]);
+    const sh = fake.ss.getSheetByName('Task_Master');
+    sh.getRange(row, 2).setValue('Vendor reconciliation');
+    g.handleEdit_({ range: sh.getRange(row, 2) });
+    expect(g.readTable_('Task_Cycles', g.CYCLE_COLS).find((c) => c.taskId === 'T-005').taskName).toBe('Vendor reconciliation');
+  });
+});

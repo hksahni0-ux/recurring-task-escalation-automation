@@ -15,7 +15,8 @@ function loadContext_() {
       if (isDate(t.startDate)) t.startDate = startOfDay(addMinutes(t.startDate, 12 * 60));
       return t;
     });
-  var taskRows = prepareTaskRows(rawTasks, employees, now, settings);
+  var cycles = readTable_(SHEETS.CYCLES, CYCLE_COLS);
+  var taskRows = prepareTaskRows(rawTasks, employees, now, settings, cycles);
   return {
     settings: settings,
     now: now,
@@ -23,8 +24,50 @@ function loadContext_() {
     rawTasks: rawTasks,
     taskRows: taskRows,
     tasks: taskRows.filter(isUsableTask),
-    cycles: readTable_(SHEETS.CYCLES, CYCLE_COLS)
+    cycles: cycles
   };
+}
+
+/** Recomputes Task_Master statuses (next due, last done) from the current cycles and saves them if changed. */
+function refreshTaskMaster_(ctx) {
+  ctx.taskRows = prepareTaskRows(ctx.rawTasks, ctx.employees, ctx.now, ctx.settings, ctx.cycles);
+  ctx.tasks = ctx.taskRows.filter(isUsableTask);
+  syncTaskMaster_(ctx);
+}
+
+/**
+ * Keeps open cycles in step with Task_Master: a reassigned or renamed task moves its open cycles to the
+ * new employee / name. Completed cycles keep their original details as history.
+ */
+function syncOpenCycles_(ctx) {
+  var byId = {};
+  ctx.tasks.forEach(function (t) { byId[t.taskId] = t; });
+  ctx.cycles.forEach(function (c) {
+    var t = byId[c.taskId];
+    if (!t || c.completedAt) return;
+    var emp = findById_(ctx.employees, 'employeeId', t.employeeId);
+    c.employeeId = t.employeeId;
+    c.employeeName = emp ? emp.name : t.employeeId;
+    c.taskName = t.taskName;
+    c.proofType = t.proofType;
+    c.proofInstructions = t.proofInstructions;
+  });
+}
+
+/**
+ * Removes open cycles that start before their task's start date (the date was moved later after the task
+ * went live), unless someone already acted on them: completed cycles and alerted ones are kept as history.
+ */
+function withdrawEarlyCycles_(ctx) {
+  var byId = {};
+  ctx.tasks.forEach(function (t) { byId[t.taskId] = t; });
+  var before = ctx.cycles.length;
+  ctx.cycles = ctx.cycles.filter(function (c) {
+    var t = byId[c.taskId];
+    if (!t || c.completedAt || c.managerAlertedAt || !isDate(c.start)) return true;
+    return startOfDay(c.start) >= startOfDay(t.startDate);
+  });
+  return before - ctx.cycles.length;
 }
 
 /** Writes back Task_Master only when preparing the rows changed something (filled defaults or a new status). */
@@ -54,11 +97,13 @@ function runAutomation(e) {
 function runAutomation_() {
   return withLock_(function () {
     var ctx = loadContext_();
-    syncTaskMaster_(ctx);
+    withdrawEarlyCycles_(ctx);
+    syncOpenCycles_(ctx);
     var created = ensureCurrentCycles_(ctx);
     ctx.cycles.forEach(function (c) { c.status = cycleStatus(c, ctx.now); });
     saveCycles_(ctx);
     var sent = processAlerts_(ctx);
+    refreshTaskMaster_(ctx);
     renderAllViews_(ctx);
     return { created: created, managerAlerts: sent.manager, escalations: sent.leadership };
   });
@@ -245,6 +290,7 @@ function handleEmployeeEdit_(e, sh) {
     var res = completeCycleCore_(ctx, cycleId, typed, emp.name + ' <' + (editorEmail_(e) || emp.email) + '>', emp.employeeId);
     if (res.ok) {
       saveCycles_(ctx);
+      refreshTaskMaster_(ctx);
       renderAllViews_(ctx);
       toast_('✅ ' + res.cycle.taskName + ' recorded.' + (res.next ? ' Next cycle: ' + fmtDate(res.next.start) + ' → due ' + fmtDateTime(res.next.dueAt) + '.' : ''));
       return;

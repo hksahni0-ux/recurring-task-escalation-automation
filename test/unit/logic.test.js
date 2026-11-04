@@ -420,3 +420,37 @@ describe('prepareTaskRows: Active on new rows (regression)', () => {
     expect(t.setupCheck).toMatch(/^⏸ Paused/);
   });
 });
+
+describe('prepareTaskRows: scheduled tasks and last completion', () => {
+  const s = settings();
+  const employees = [{ employeeId: 'E-A', name: 'Employee A' }];
+  const now = D('2026-11-04 15:00');
+  const task = { taskId: 'T-004', taskName: 'Portal Task C', employeeId: 'E-A', frequencyDays: 7, proofType: 'TICKET', proofInstructions: 'x', startDate: D('2026-10-26'), active: true };
+
+  test('a future start date shows as Scheduled, hidden from the employee until then', () => {
+    const [t] = g.prepareTaskRows([{ ...task, startDate: D('2026-11-09') }], employees, now, s);
+    expect(t.setupCheck).toBe('🗓 Scheduled: starts Mon 09 Nov 2026, first due Sat 14 Nov 2026, 18:00 (hidden from the employee until then)');
+    expect(g.isUsableTask(t)).toBe(true);
+  });
+
+  test('shows the most recent completion with who, proof and timeliness', () => {
+    const cycles = [
+      { taskId: 'T-004', completedAt: D('2026-10-31 16:00'), employeeName: 'Employee A', proof: 'TCK-6950', resolution: 'Completed on time' },
+      { taskId: 'T-004', completedAt: D('2026-11-03 10:00'), employeeName: 'Employee A', proof: 'TCK-7001', resolution: 'Completed after manager alert' },
+      { taskId: 'T-009', completedAt: D('2026-11-04 10:00'), employeeName: 'Employee B', proof: 'X-1', resolution: 'Completed on time' },
+    ];
+    const [t] = g.prepareTaskRows([task], employees, now, s, cycles);
+    expect(t.setupCheck).toMatch(/^✅ Live: next due .* · Last done Tue 03 Nov 2026 by Employee A \(TCK-7001\), after a manager alert$/);
+  });
+
+  test('long proof text is shortened', () => {
+    const cycles = [{ taskId: 'T-004', completedAt: D('2026-11-03 10:00'), employeeName: 'Employee A', proof: 'Dispatched 42 orders, 2 delayed (courier), no escalations.', resolution: 'Completed on time' }];
+    const [t] = g.prepareTaskRows([task], employees, now, s, cycles);
+    expect(t.setupCheck).toMatch(/\(Dispatched 42 orders, 2 delayed…\), on time$/);
+  });
+
+  test('never completed: nothing extra', () => {
+    const [t] = g.prepareTaskRows([task], employees, now, s, []);
+    expect(t.setupCheck).not.toMatch(/Last done/);
+  });
+});
