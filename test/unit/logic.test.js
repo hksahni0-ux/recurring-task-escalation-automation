@@ -473,3 +473,22 @@ describe('cancelled cycles (task paused)', () => {
     expect(g.summarizeTeam([{ employeeId: 'E-A', name: 'A' }], [c], now)[0]).toMatchObject({ pending: 0, overdue: 0, awaitingAck: 0, escalatedOpen: 0 });
   });
 });
+
+describe('prepareTaskRows: next due after the current period is done (regression)', () => {
+  // The status kept showing the current period's due date after that period was completed.
+  const s = settings();
+  const employees = [{ employeeId: 'E-B', name: 'Employee B' }];
+  const task = { taskId: 'T-002', taskName: 'Portal Task A', employeeId: 'E-B', frequencyDays: 7, proofType: 'TICKET', proofInstructions: 'x', startDate: D('2026-11-02'), active: true };
+  const now = D('2026-11-04 11:00');
+
+  test('a completed current period points to the next period', () => {
+    const cycles = [{ taskId: 'T-002', cycleId: 'T-002-20261102', completedAt: D('2026-11-04 11:00'), employeeName: 'Employee B', proof: 'TCK-7001', resolution: 'Completed on time' }];
+    const [t] = g.prepareTaskRows([task], employees, now, s, cycles);
+    expect(t.setupCheck).toMatch(/^✅ Live: next due Sat 14 Nov 2026, 18:00/);
+  });
+
+  test('an open current period still shows its own due date', () => {
+    const [t] = g.prepareTaskRows([task], employees, now, s, [{ taskId: 'T-002', cycleId: 'T-002-20261102', completedAt: '' }]);
+    expect(t.setupCheck).toMatch(/^✅ Live: next due Sat 07 Nov 2026, 18:00/);
+  });
+});

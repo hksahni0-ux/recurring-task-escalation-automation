@@ -50,7 +50,7 @@ function renderEmployeeTab_(ctx, emp) {
 
   sh.getRange(1, 1).setValue('My Tasks: ' + emp.name).setFontSize(16).setFontWeight('bold').setFontColor(COLORS.title);
   sh.getRange(2, 1).setValue('To complete a task, type the Ticket ID (portal tasks) or paste the update you posted in the WhatsApp group ' +
-    '(daily task) into the yellow cell. That is the only update needed: the system records who and when, and opens the next cycle.');
+    '(daily task) into the yellow cell. That is the only update needed: the system records who and when, and the next one appears when it is due.');
   sh.getRange(3, 1).setValue('Refreshed ' + fmtDateTime(ctx.now) + demoBanner_(ctx)).setFontColor(COLORS.muted);
   styleHeaderRow_(sh.getRange(EMP_VIEW.HEADER_ROW, 1, 1, width).setValues([EMP_VIEW.HEADERS]));
 

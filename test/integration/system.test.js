@@ -35,7 +35,7 @@ describe('setup', () => {
 });
 
 describe('employee single-point update', () => {
-  test('entering a ticket on My Tasks completes the cycle and prepares the next one', () => {
+  test('entering a ticket on My Tasks completes the cycle (no future cycle is stored)', () => {
     const { g, sheet } = boot();
     setNow(g, '2026-11-03 10:00');
     g.runAutomation_();
@@ -47,10 +47,9 @@ describe('employee single-point update', () => {
     g.handleEdit_({ range: cell, value: 'TCK-555', oldValue: '' });
 
     const cycles = g.readTable_('Task_Cycles', g.CYCLE_COLS).filter((c) => c.taskId === 'T-002');
-    expect(cycles).toHaveLength(2);
+    expect(cycles).toHaveLength(1); // no future row: the next cycle is created when its period starts
     expect(cycles[0]).toMatchObject({ status: 'Completed', proof: 'TCK-555' });
     expect(cycles[0].completedBy).toMatch(/Employee B/);
-    expect(cycles[1].status).toBe('Upcoming');
   });
 
   test('an invalid ticket is rejected, nothing is recorded, and the employee sees why', () => {
@@ -508,6 +507,9 @@ describe('reassigning a task in Task_Master (regression)', () => {
     const cell = tabA.getRange(g.findRowByValue_(tabA, 1, today.cycleId), g.EMP_VIEW.INPUT_COL);
     cell.setValue('VR-1');
     g.handleEdit_({ range: cell });
+    // Next day: the morning run opens tomorrow's cycle for Employee A.
+    setNow(g, '2026-11-05 08:00');
+    g.runAutomation_();
 
     const sh = fake.ss.getSheetByName('Task_Master');
     sh.getRange(row, 3).setValue('Employee D');
@@ -518,9 +520,6 @@ describe('reassigning a task in Task_Master (regression)', () => {
     const done = cycles.find((c) => c.completedAt);
     expect([open.employeeId, open.employeeName]).toEqual(['E-D', 'Employee D']);
     expect([done.employeeId, done.employeeName]).toEqual(['E-A', 'Employee A']);
-    // The open cycle is tomorrow's, so it becomes visible when its day starts, on D's tab, not A's.
-    setNow(g, '2026-11-05 08:00');
-    g.runAutomation_();
     expect(tabHas(fake, 'Employee D', open.cycleId)).toBe(true);
     expect(tabHas(fake, 'Employee A', open.cycleId)).toBe(false);
   });
@@ -598,7 +597,7 @@ describe('pausing a task cancels its open cycle', () => {
 });
 
 describe('employee tab after completing a task', () => {
-  test('the next cycle is prepared but not shown until its period starts', () => {
+  test('no future cycle is created; the next one appears when its period starts', () => {
     const { g, fake } = boot();
     setNow(g, '2026-11-04 10:00');
     g.runAutomation_();
@@ -606,8 +605,8 @@ describe('employee tab after completing a task', () => {
     const cell = tab.getRange(g.findRowByValue_(tab, 1, 'T-002-20261102'), g.EMP_VIEW.INPUT_COL);
     cell.setValue('TCK-1');
     g.handleEdit_({ range: cell });
-    expect(g.readTable_('Task_Cycles', g.CYCLE_COLS).find((c) => c.cycleId === 'T-002-20261109').status).toBe('Upcoming');
-    expect(g.findRowByValue_(tab, 1, 'T-002-20261109')).toBe(0);
+    expect(g.readTable_('Task_Cycles', g.CYCLE_COLS).find((c) => c.cycleId === 'T-002-20261109')).toBeUndefined();
+    expect(g.readTable_('Task_Cycles', g.CYCLE_COLS).every((c) => c.status !== 'Upcoming')).toBe(true);
     setNow(g, '2026-11-09 08:00');
     g.runAutomation_();
     expect(g.findRowByValue_(tab, 1, 'T-002-20261109')).toBeGreaterThan(g.EMP_VIEW.HEADER_ROW);

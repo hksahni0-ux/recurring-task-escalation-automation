@@ -239,16 +239,10 @@ function completeCycleCore_(ctx, cycleId, rawProof, by, employeeId) {
   c.status = STATUS.COMPLETED;
   c.resolution = describeResolution(c, ctx.now);
 
-  var next = null;
+  // The next cycle is not stored now: the scheduled run creates it when its period starts.
+  // It is only worked out here so the employee can be told when it will be due.
   var task = findById_(ctx.tasks, 'taskId', c.taskId);
-  if (task && isActive(task.active)) {
-    var n = nextCycleAfter(task, c, ctx.settings);
-    next = findById_(ctx.cycles, 'cycleId', n.cycleId);
-    if (!next) {
-      next = newCycleRecord_(ctx, task, n);
-      ctx.cycles.push(next);
-    }
-  }
+  var next = task && isActive(task.active) ? nextCycleAfter(task, c, ctx.settings) : null;
   return { ok: true, cycle: c, next: next };
 }
 
@@ -321,7 +315,7 @@ function handleEmployeeEdit_(e, sh) {
       saveCycles_(ctx);
       refreshTaskMaster_(ctx);
       renderAllViews_(ctx);
-      toast_('✅ ' + res.cycle.taskName + ' recorded.' + (res.next ? ' Next cycle: ' + fmtDate(res.next.start) + ' → due ' + fmtDateTime(res.next.dueAt) + '.' : ''));
+      toast_('✅ ' + res.cycle.taskName + ' recorded.' + (res.next ? ' The next one appears on ' + fmtDate(res.next.start) + ', due ' + fmtDateTime(res.next.dueAt) + '.' : ''));
       return;
     }
     renderAllViews_(ctx);

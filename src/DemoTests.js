@@ -216,19 +216,21 @@ function demoTest1_() {
   assert_(closed.status === STATUS.COMPLETED && closed.proof === 'TCK-7001', 'cycle 1 closed with ticket TCK-7001');
 
   var c2 = nextCycleAfter(task, c1, s);
-  assert_(demoCycle_(c2.cycleId).status === STATUS.UPCOMING, 'next cycle ' + c2.cycleId + ' prepared as Upcoming');
+  assert_(!demoCycle_(c2.cycleId), 'no future cycle created in advance');
+  var status = findById_(loadContext_().taskRows, 'taskId', task.taskId).setupCheck;
+  assert_(status.indexOf('next due ' + fmtDateTime(c2.dueAt)) !== -1, 'Task_Master tracks the next due date (' + status + ')');
 
   demoSetNow_(atTime(c2.start, parseTime('09:00')));
   runAutomation_();
   runAutomation_();
   var next = demoCycle_(c2.cycleId);
-  assert_(next.status === STATUS.PENDING, c2.cycleId + ' to become Pending when its period starts');
+  assert_(next && next.status === STATUS.PENDING, c2.cycleId + ' to open as Pending when its period starts');
   var count = demoCycles_().filter(function (c) { return c.taskId === 'T-002'; }).length;
   assert_(count === 2, 'exactly 2 cycles for T-002, found ' + count);
 
   return 'Cycle ' + c1.cycleId + ' (due ' + fmtDateTime(c1.dueAt) + ') completed ' + fmtDateTime(doneAt) + ' with TCK-7001 by ' +
-    closed.completedBy + '. Next cycle ' + c2.cycleId + ' created immediately as Upcoming (due ' + fmtDateTime(c2.dueAt) +
-    '), became Pending on ' + fmtDate(c2.start) + '. T-002 has 2 cycles, no duplicates.';
+    closed.completedBy + '. Nothing was created in advance; Task_Master showed "next due ' + fmtDateTime(c2.dueAt) + '". On ' +
+    fmtDate(c2.start) + ' the scheduled run opened ' + c2.cycleId + ' as Pending. T-002 has 2 cycles, no duplicates.';
 }
 
 function demoTest2_() {
@@ -259,7 +261,7 @@ function demoTest2_() {
   var after = findRowByValue_(sh, 1, c.cycleId);
   return 'Employee C saw ' + c.cycleId + ' (' + shownStatus + ') on "' + sh.getName() + '" and typed PRT-15001 once in the yellow cell. ' +
     'Result: Task_Cycles row completed (' + fmtDateTime(rec.completedAt) + ', ' + rec.completedBy + '), the tab now shows it as ' +
-    sh.getRange(after, 6).getValue() + ', the Manager Dashboard shows 0 pending/overdue, and the next cycle is queued. No other sheet was touched.';
+    sh.getRange(after, 6).getValue() + ', the Manager Dashboard shows 0 pending/overdue, and Task_Master shows the next due date. No other sheet was touched.';
 }
 
 function demoTest3_() {
@@ -279,11 +281,14 @@ function demoTest3_() {
   var rec = demoCycle_(c.cycleId);
   assert_(rec.status === STATUS.COMPLETED && rec.proof === update, 'daily update text stored as proof');
   var next = nextCycleAfter(task, c, s);
-  assert_(demoCycle_(next.cycleId).status === STATUS.UPCOMING, 'next working day cycle ' + next.cycleId + ' prepared');
+  assert_(!demoCycle_(next.cycleId), 'no future cycle created in advance');
+  demoSetNow_(atTime(next.start, parseTime('07:00')));
+  runAutomation_();
+  assert_(demoCycle_(next.cycleId) && demoCycle_(next.cycleId).status === STATUS.PENDING, 'next working day cycle ' + next.cycleId + ' opened that morning');
 
   return 'Daily task has no ticket, so the employee pastes the update they posted in WhatsApp. "done" was rejected (too short to be an update). ' +
     'The real update was accepted: stored text + ' + fmtDateTime(rec.completedAt) + ' + ' + rec.completedBy + ' (' + rec.resolution + '). ' +
-    'Next cycle ' + next.cycleId + ' (' + fmtDate(next.start) + ') queued; Sundays/holidays get no daily cycle.';
+    'Next cycle ' + next.cycleId + ' opened at 07:00 on ' + fmtDate(next.start) + '; Sundays/holidays get no daily cycle.';
 }
 
 /** Leaves `task`'s cycle for `day` overdue and past the alert time; returns the alerted cycle. */

@@ -12,7 +12,7 @@ Task_Master ──(hourly / 07:00 run)──► Task_Cycles: one row per cycle, 
                      ┌────────────────────┴──────────────────────┐
                      ▼                                           ▼
      "My Tasks - <employee>" tab                       Manager Dashboard
-     employee types Ticket ID / update ──► cycle closed, next cycle opened, views refreshed
+     employee types Ticket ID / update ──► cycle closed, views refreshed (next cycle opens when its period starts)
                                           │
              due 18:00 missed ──► 18:30 same-day manager email (one per item)
                                           │
@@ -40,7 +40,7 @@ Task_Master ──(hourly / 07:00 run)──► Task_Cycles: one row per cycle, 
 - A task with frequency *N* days and start date *S* has cycles starting at *S*, *S+N*, *S+2N*, and so on. Each cycle covers *N* days and is **due at 18:00 on the last working day of the period** (Sundays and holidays move back to the previous working day).
 - A daily task (*N* = 1) gets a cycle on every working day only.
 - Cycles are **anchored on the start date**, so completing late never shifts future due dates. Nobody calculates a next due date by hand.
-- When a cycle is completed, the next cycle is created at once (shown as *Upcoming*). The hourly run also creates any cycle whose period has started. The ID `TaskID-YYYYMMDD` is deterministic, so a cycle can never exist twice.
+- Nothing is created in advance. The scheduled run (07:00 daily and hourly) opens each cycle on the day its period starts, and Task_Master's Status shows when the next one is due. The ID `TaskID-YYYYMMDD` is deterministic, so a cycle can never exist twice.
 - **Managing tasks:** a manager adds a task as a new Task_Master row, which goes live at once. A future Start Date keeps it hidden from the employee until that day. Changing Assigned To or the Task Name moves the task's open cycles. **Pausing** (unticking Active) cancels the open cycle, which disappears from every view and never alerts but stays in Task_Cycles as a record. Resuming within the same period reopens it.
 
 ## 4. Single-point completion
@@ -53,7 +53,7 @@ The employee works only on their **My Tasks** tab and types **one value** into t
 The on-edit trigger then, under a lock:
 1. validates the entry;
 2. records **proof, completed-at and completed-by** (employee name and the editor's Google account) in Task_Cycles;
-3. closes the cycle, records its resolution (on time / late / after alert / after escalation) and opens the next cycle;
+3. closes the cycle and records its resolution (on time / late / after alert / after escalation). The next cycle opens when its period starts;
 4. redraws every tab and the dashboard.
 
 Rejected entries stay in the cell with a note explaining why, and nothing is recorded. A second entry on a completed cycle is ignored. No other sheet ever needs updating.
@@ -124,7 +124,7 @@ The tests run the real code paths (time-trigger run, employee edit, dashboard ed
 
 | # | Scenario | Checked |
 |---|---|---|
-| 1 | Weekly task completed with TCK-7001 | Cycle closed; next cycle created as Upcoming; becomes Pending when its period starts; still exactly 2 cycles |
+| 1 | Weekly task completed with TCK-7001 | Cycle closed; nothing created in advance; Task_Master shows the next due date; the next cycle opens as Pending when its period starts; still exactly 2 cycles |
 | 2 | Employee C types a Ticket ID on their tab | Task_Cycles updated (proof, who, when); tab and dashboard updated; no other edit needed |
 | 3 | Daily update | "done" rejected; real update accepted and stored; next working day's cycle queued |
 | 4 | Daily task missed | No email at 18:15 (grace period); one manager email at 18:35 the same day |
@@ -133,4 +133,4 @@ The tests run the real code paths (time-trigger run, employee edit, dashboard ed
 | 7 | SLA boundaries | Each rule checked one minute before and at its deadline; holiday shift; no repeats |
 | 8 | Run automation 3× at each stage; enter completion twice | 1 manager email, 1 leadership email, unique cycle IDs, completion recorded once |
 
-The same logic is also covered by 98 automated tests in Node (`npm run test:all`), run in CI on every push.
+The same logic is also covered by 100 automated tests in Node (`npm run test:all`), run in CI on every push.

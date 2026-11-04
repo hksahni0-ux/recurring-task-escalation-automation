@@ -330,6 +330,10 @@ function prepareTaskRows(rows, employees, now, s, cycles) {
       var future = startOfDay(now) < startOfDay(t.startDate);
       var from = startOfDay(future ? t.startDate : now);
       var c = cycleForDate(t, from, s) || nextCycleAfter(t, buildCycle_(t, from, from, s), s);
+      // Once the current period's work is done, the next thing due is the following period.
+      var current = c;
+      var doneNow = (cycles || []).some(function (x) { return x.cycleId === current.cycleId && isDate(x.completedAt); });
+      if (doneNow) c = nextCycleAfter(t, c, s);
       t.setupCheck = future
         ? '🗓 Scheduled: starts ' + fmtDate(t.startDate) + ', first due ' + fmtDateTime(c.dueAt) + ' (hidden from the employee until then)'
         : '✅ Live: next due ' + fmtDateTime(c.dueAt);
