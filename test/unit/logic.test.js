@@ -400,3 +400,23 @@ describe('prepareTaskRows (tasks added by a manager)', () => {
     expect(rows.map((r) => g.isUsableTask(r))).toEqual([true, false]);
   });
 });
+
+describe('prepareTaskRows: Active on new rows (regression)', () => {
+  // In Sheets an untouched checkbox cell reads FALSE, not blank, so a manager's new row
+  // used to arrive as "paused" and never went live.
+  const s = settings();
+  const employees = [{ employeeId: 'E-A', name: 'Employee A' }];
+  const now = D('2026-11-04 15:00');
+
+  test('a new row (no Task ID yet) with an unticked checkbox goes live', () => {
+    const [t] = g.prepareTaskRows([{ taskName: 'New task', employeeId: 'E-A', frequencyDays: 7, active: false }], employees, now, s);
+    expect(t.active).toBe(true);
+    expect(t.setupCheck).toMatch(/^✅ Live/);
+  });
+
+  test('an existing task that is unticked stays paused', () => {
+    const [t] = g.prepareTaskRows([{ taskId: 'T-001', taskName: 'Old task', employeeId: 'E-A', frequencyDays: 7, active: false, startDate: D('2026-11-02') }], employees, now, s);
+    expect(t.active).toBe(false);
+    expect(t.setupCheck).toMatch(/^⏸ Paused/);
+  });
+});

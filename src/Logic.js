@@ -294,7 +294,8 @@ function prepareTaskRows(rows, employees, now, s) {
   return rows.map(function (r) {
     var t = {};
     Object.keys(r).forEach(function (k) { t[k] = r[k]; });
-    t.taskId = String(t.taskId || '').trim() || 'T-' + pad3_(++maxN);
+    var isNew = !String(t.taskId || '').trim();
+    t.taskId = isNew ? 'T-' + pad3_(++maxN) : String(t.taskId).trim();
     var badStart = false;
     if (!isDate(t.startDate)) {
       try {
@@ -303,7 +304,8 @@ function prepareTaskRows(rows, employees, now, s) {
         badStart = true;
       }
     }
-    if (t.active === null || t.active === undefined || String(t.active) === '') t.active = true;
+    // An untouched checkbox reads FALSE in Sheets, so a brand-new row always starts active; unticking an existing task pauses it.
+    if (isNew || t.active === null || t.active === undefined || String(t.active) === '') t.active = true;
     t.proofType = String(t.proofType || '').trim().toUpperCase() || PROOF.TICKET;
     if (!t.proofInstructions && PROOF_INSTRUCTIONS[t.proofType]) t.proofInstructions = PROOF_INSTRUCTIONS[t.proofType];
     var typed = String(t.employeeId || '').trim();
