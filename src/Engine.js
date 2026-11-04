@@ -7,7 +7,10 @@ function loadContext_() {
   syncTimeZone_();
   var settings = loadConfig_();
   var now = settings.simulatedNow || new Date();
-  var employees = readTable_(SHEETS.EMPLOYEES, EMPLOYEE_COLS);
+  // Keep half-typed rows (any of ID, name, email) so rewriting the tab never drops what someone is typing.
+  var rawEmployees = readTable_(SHEETS.EMPLOYEES, EMPLOYEE_COLS, function (r) { return [r[0], r[1], r[2]].some(function (v) { return String(v).trim() !== ''; }); });
+  var employeeRows = prepareEmployeeRows(rawEmployees);
+  var employees = employeeRows.filter(isUsableEmployee);
   // A Task_Master row counts as soon as it has a Task ID or a Task Name (managers type new rows without an ID).
   var rawTasks = readTable_(SHEETS.TASKS, TASK_COLS, function (r) { return String(r[0]).trim() !== '' || String(r[1]).trim() !== ''; })
     .map(function (t) {
@@ -20,6 +23,8 @@ function loadContext_() {
   return {
     settings: settings,
     now: now,
+    rawEmployees: rawEmployees,
+    employeeRows: employeeRows,
     employees: employees,
     rawTasks: rawTasks,
     taskRows: taskRows,
@@ -266,6 +271,31 @@ function acknowledgeCore_(ctx, cycleId, action, note, by) {
   };
 }
 
+// ---------------------------------------------------------------- employees
+
+/** A new or edited Employees row: fill in ID and tab name, create the tab, lock it, and draw it. */
+function onEmployeesChanged_() {
+  var ctx = loadContext_();
+  if (JSON.stringify(toRows_(EMPLOYEE_COLS, ctx.rawEmployees)) !== JSON.stringify(toRows_(EMPLOYEE_COLS, ctx.employeeRows))) {
+    writeTable_(SHEETS.EMPLOYEES, EMPLOYEE_COLS, ctx.employeeRows);
+  }
+  ctx.employees.forEach(function (emp) {
+    if (!getSpreadsheet_().getSheetByName(emp.tabName)) createEmployeeTab_(emp);
+  });
+  applyAccessRules_();
+  runAutomation_();
+}
+
+/** Inserts a new My Tasks tab right after the existing ones (without switching the user's view). */
+function createEmployeeTab_(emp) {
+  var ss = getSpreadsheet_();
+  var sheets = ss.getSheets();
+  var after = 0;
+  sheets.forEach(function (sh, i) { if (sh.getName().indexOf(EMPLOYEE_TAB_PREFIX) === 0) after = i + 1; });
+  ss.insertSheet(emp.tabName, after || sheets.length);
+  setupEmployeeTab_(emp);
+}
+
 // ---------------------------------------------------------------- edit handlers
 
 function editorEmail_(e) {
@@ -287,7 +317,8 @@ function handleEdit_(e) {
   var name = sh.getName();
   if (name === SHEETS.DASHBOARD) handleDashboardEdit_(e, sh);
   else if (name.indexOf(EMPLOYEE_TAB_PREFIX) === 0) handleEmployeeEdit_(e, sh);
-  else if (name === SHEETS.EMPLOYEES || name === SHEETS.CONFIG) withLock_(applyAccessRules_); // roles may have changed
+  else if (name === SHEETS.EMPLOYEES) withLock_(onEmployeesChanged_);
+  else if (name === SHEETS.CONFIG) withLock_(applyAccessRules_); // roles may have changed
   else if (name === SHEETS.TASKS) runAutomation_(); // a new or changed task takes effect at once
 }
 

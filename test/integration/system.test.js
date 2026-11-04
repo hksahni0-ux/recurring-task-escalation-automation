@@ -638,3 +638,45 @@ describe('tabs wider than 26 columns (regression)', () => {
     expect(fake.ss.getSheetByName('Task_Cycles').getMaxColumns()).toBeGreaterThanOrEqual(g.CYCLE_COLS.length);
   });
 });
+
+describe('adding a new employee in the Employees tab', () => {
+  function addEmployee(g, fake, values) {
+    const sh = fake.ss.getSheetByName('Employees');
+    const row = sh.getLastRow() + 1;
+    values.forEach(([col, v]) => sh.getRange(row, col).setValue(v));
+    g.handleEdit_({ range: sh.getRange(row, values[values.length - 1][0]) });
+    return row;
+  }
+
+  test('creates, fills, draws and locks the new employee\'s tab', () => {
+    const { g, fake } = boot();
+    setNow(g, '2026-11-04 10:00');
+    const row = addEmployee(g, fake, [[1, 'E-E'], [2, 'Employee E'], [3, 'emp.e@example.com']]);
+    expect(fake.ss.getSheetByName('Employees').getRange(row, 4).getValue()).toBe('My Tasks - Employee E');
+    const tab = fake.ss.getSheetByName('My Tasks - Employee E');
+    expect(tab).not.toBeNull();
+    expect(tab.getRange(1, 1).getValue()).toBe('My Tasks: Employee E');
+    expect(tab.editorsOf()).toContain('emp.e@example.com');
+  });
+
+  test('a task can then be assigned to the new employee and shows on their tab', () => {
+    const { g, fake } = boot();
+    setNow(g, '2026-11-04 10:00');
+    addEmployee(g, fake, [[1, 'E-E'], [2, 'Employee E'], [3, 'emp.e@example.com']]);
+    const tm = fake.ss.getSheetByName('Task_Master');
+    const r = tm.getLastRow() + 1;
+    [[2, 'Petty cash count'], [3, 'Employee E'], [4, 7]].forEach(([c, v]) => tm.getRange(r, c).setValue(v));
+    g.handleEdit_({ range: tm.getRange(r, 4) });
+    const cycle = g.readTable_('Task_Cycles', g.CYCLE_COLS).find((c) => c.taskName === 'Petty cash count');
+    expect(cycle.employeeId).toBe('E-E');
+    expect(g.findRowByValue_(fake.ss.getSheetByName('My Tasks - Employee E'), 1, cycle.cycleId)).toBeGreaterThan(g.EMP_VIEW.HEADER_ROW);
+  });
+
+  test('a half-typed row (no name yet) breaks nothing', () => {
+    const { g, fake } = boot();
+    setNow(g, '2026-11-04 10:00');
+    addEmployee(g, fake, [[3, 'someone@example.com']]);
+    expect(() => g.runAutomation_()).not.toThrow();
+    expect(fake.ss.getSheets().some((s) => s.getName() === 'My Tasks - ')).toBe(false);
+  });
+});

@@ -509,3 +509,27 @@ describe('prepareTaskRows: instructions follow a changed proof type (regression)
     expect(t.proofInstructions).toBe('Paste the stand-up summary');
   });
 });
+
+describe('prepareEmployeeRows (new employees typed into the Employees tab)', () => {
+  const existing = [
+    { employeeId: 'E-A', name: 'Employee A', email: 'a@x.com', tabName: 'My Tasks - Employee A' },
+    { employeeId: 'E-D', name: 'Employee D', email: 'd@x.com', tabName: 'My Tasks - Employee D' },
+  ];
+
+  test('fills the tab name for a new employee', () => {
+    const rows = g.prepareEmployeeRows(existing.concat([{ employeeId: 'E-E', name: 'Employee E', email: 'e@x.com', tabName: '' }]));
+    expect(rows[2]).toMatchObject({ employeeId: 'E-E', tabName: 'My Tasks - Employee E' });
+  });
+
+  test('a blank ID gets a unique one', () => {
+    const rows = g.prepareEmployeeRows(existing.concat([{ employeeId: '', name: 'Priya Shah', email: 'p@x.com', tabName: '' }]));
+    expect(rows[2].employeeId).toBe('E-003');
+    expect(rows[2].tabName).toBe('My Tasks - Priya Shah');
+  });
+
+  test('a row without a name is not usable and gets no tab', () => {
+    const rows = g.prepareEmployeeRows([{ employeeId: 'E-Z', name: '', email: 'z@x.com', tabName: '' }]);
+    expect(rows[0].tabName).toBe('');
+    expect(g.isUsableEmployee(rows[0])).toBe(false);
+  });
+});

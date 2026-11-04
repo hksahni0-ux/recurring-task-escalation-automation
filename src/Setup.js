@@ -85,7 +85,9 @@ function setupSystem() {
   cycles.getRange(2, 14, cycles.getMaxRows() - 1, 1).setNumberFormat('@'); // Ticket IDs like 00123 keep their zeros
 
   writeGuide_();
-  readTable_(SHEETS.EMPLOYEES, EMPLOYEE_COLS).forEach(function (emp) { setupEmployeeTab_(emp); });
+  var employees = prepareEmployeeRows(readTable_(SHEETS.EMPLOYEES, EMPLOYEE_COLS));
+  writeTable_(SHEETS.EMPLOYEES, EMPLOYEE_COLS, employees);
+  employees.filter(isUsableEmployee).forEach(function (emp) { setupEmployeeTab_(emp); });
   ensureSheet_(SHEETS.DASHBOARD).setFrozenRows(0);
   orderSheets_();
   var access = applyAccessRules_();
@@ -122,7 +124,7 @@ function setupEmployeeTab_(emp) {
 function orderSheets_() {
   var ss = getSpreadsheet_();
   var order = [SHEETS.GUIDE, SHEETS.DASHBOARD]
-    .concat(readTable_(SHEETS.EMPLOYEES, EMPLOYEE_COLS).map(function (e) { return e.tabName; }))
+    .concat(readTable_(SHEETS.EMPLOYEES, EMPLOYEE_COLS).filter(isUsableEmployee).map(function (e) { return e.tabName; }))
     .concat([SHEETS.TASKS, SHEETS.EMPLOYEES, SHEETS.CONFIG, SHEETS.HOLIDAYS, SHEETS.CYCLES, SHEETS.ALERTS, SHEETS.TESTS]);
   order.forEach(function (name, i) {
     var sh = ss.getSheetByName(name);
@@ -198,7 +200,7 @@ function writeGuide_() {
     ['Manager Dashboard', 'Team summary + exceptions with Ack / Manager Action / Note (editable).'],
     ['My Tasks - <name>', 'Each employee\'s single place of work.'],
     ['Task_Master', 'Add a task by typing a new row: Task Name, Assigned To (employee ID or name, e.g. Employee B) and Frequency (days). Everything else fills itself in (Task ID, Start Date = today, Active, Proof Type = TICKET). The task appears on the employee\'s My Tasks tab at once. To prepare a task without showing it yet, give it a future Start Date: it stays "🗓 Scheduled" and appears on that day. The Status column also shows when the task was last done, by whom and whether it was on time, or exactly what to fix. Changing Assigned To or the Task Name moves the task\'s open cycles to match (completed ones stay as history). Untick Active to pause a task: its open cycle is cancelled and disappears from the employee\'s tab and the dashboard (kept in Task_Cycles as a record). Tick it again to resume.'],
-    ['Employees / Config / Holidays', 'Team list, SLA settings and recipients, non-working days.'],
+    ['Employees / Config / Holidays', 'Team list, SLA settings and recipients, non-working days. To add an employee, type their Name and Email (ID optional): their My Tasks tab is created, locked to them and listed at once.'],
     ['Task_Cycles', 'System of record: one row per cycle with completion, alert, ack and escalation history.'],
     ['Alert_Log', 'Every email the system has sent.'],
     ['Test_Log', 'Results of the built-in demo tests (menu ⚙ Ops Automation → Demo tests).'],

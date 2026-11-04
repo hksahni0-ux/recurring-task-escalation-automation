@@ -371,6 +371,33 @@ function lastDoneText_(taskId, cycles) {
     (TIMELINESS_[last.resolution] ? ', ' + TIMELINESS_[last.resolution] : '');
 }
 
+// ---------------------------------------------------------------- employees
+
+/** Completes rows typed into Employees: an ID if blank (E-001…) and the My Tasks tab name. Rows without a name are left alone. */
+function prepareEmployeeRows(rows) {
+  var n = 0;
+  rows.forEach(function (r) {
+    var id = String(r.employeeId || '').trim();
+    if (id) n++;
+    var m = /^E-(\d+)$/.exec(id);
+    if (m) n = Math.max(n, +m[1]);
+  });
+  return rows.map(function (r) {
+    var e = {};
+    Object.keys(r).forEach(function (k) { e[k] = r[k]; });
+    var name = String(e.name || '').trim();
+    if (!name) return e;
+    e.name = name;
+    if (!String(e.employeeId || '').trim()) e.employeeId = 'E-' + pad3_(++n);
+    if (!String(e.tabName || '').trim()) e.tabName = EMPLOYEE_TAB_PREFIX + name;
+    return e;
+  });
+}
+
+function isUsableEmployee(e) {
+  return !!(String(e.employeeId || '').trim() && String(e.name || '').trim() && String(e.tabName || '').trim());
+}
+
 // ---------------------------------------------------------------- holidays
 
 var HOLIDAY_SOURCE = { CALENDAR: 'Google Calendar', MANUAL: 'Manual' };
