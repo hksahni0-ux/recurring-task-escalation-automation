@@ -82,7 +82,7 @@ class FakeProtection {
 }
 
 class FakeSheet {
-  constructor(name, ss) { this.name = name; this.ss = ss; this.cells = []; this.notes = {}; this.protections = []; }
+  constructor(name, ss) { this.name = name; this.ss = ss; this.cells = []; this.notes = {}; this.protections = []; this.maxColumns = 26; }
   protect() { const p = new FakeProtection(this); this.protections.push(p); return p; }
   getProtections() { return this.protections.slice(); }
   /** Test helper: who may edit this sheet (null = unprotected). */
@@ -106,8 +106,13 @@ class FakeSheet {
     return last;
   }
   getMaxRows() { return Math.max(200, this.cells.length); }
-  getMaxColumns() { return 26; }
-  getRange(row, col, numRows = 1, numCols = 1) { return withNoops(new FakeRange(this, row, col, numRows, numCols)); }
+  getMaxColumns() { return this.maxColumns; }
+  insertColumnsAfter(after, howMany) { this.maxColumns += howMany; return this.self; }
+  getRange(row, col, numRows = 1, numCols = 1) {
+    // Like Sheets: a new tab has 26 columns (A-Z) and ranges beyond the edge throw.
+    if (col + numCols - 1 > this.maxColumns) throw new Error('The coordinates of the range are outside the dimensions of the sheet.');
+    return withNoops(new FakeRange(this, row, col, numRows, numCols));
+  }
   getDataRange() { return this.getRange(1, 1, Math.max(this.getLastRow(), 1), Math.max(this.getLastColumn(), 1)); }
   clear() { this.cells = []; this.notes = {}; return this.self; }
   clearContents() { this.cells = []; return this.self; }

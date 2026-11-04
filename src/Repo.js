@@ -33,9 +33,16 @@ function ensureSheet_(name) {
   return ss.getSheetByName(name) || ss.insertSheet(name);
 }
 
+/** New tabs have 26 columns (A-Z); add any a table needs before touching it, or Sheets throws. */
+function ensureColumns_(sh, needed) {
+  var have = sh.getMaxColumns();
+  if (have < needed) sh.insertColumnsAfter(have, needed - have);
+  return sh;
+}
+
 /** Data rows as objects. By default a row counts when its first cell is filled; `keep` overrides that. */
 function readTable_(name, cols, keep) {
-  var sh = getSheet_(name);
+  var sh = ensureColumns_(getSheet_(name), cols.length);
   var last = sh.getLastRow();
   if (last < 2) return [];
   return sh.getRange(2, 1, last - 1, cols.length).getValues()
@@ -60,7 +67,7 @@ function toRows_(cols, objs) {
 
 /** Replaces all data rows (row 2+) of a table. */
 function writeTable_(name, cols, objs) {
-  var sh = getSheet_(name);
+  var sh = ensureColumns_(getSheet_(name), cols.length);
   var last = sh.getLastRow();
   if (last > 1) sh.getRange(2, 1, last - 1, cols.length).clearContent();
   if (objs.length) sh.getRange(2, 1, objs.length, cols.length).setValues(toRows_(cols, objs));
@@ -68,11 +75,12 @@ function writeTable_(name, cols, objs) {
 
 function appendTable_(name, cols, objs) {
   if (!objs.length) return;
-  var sh = getSheet_(name);
+  var sh = ensureColumns_(getSheet_(name), cols.length);
   sh.getRange(Math.max(sh.getLastRow(), 1) + 1, 1, objs.length, cols.length).setValues(toRows_(cols, objs));
 }
 
 function writeHeader_(sh, cols) {
+  ensureColumns_(sh, cols.length);
   sh.getRange(1, 1, 1, cols.length).setValues([cols.map(function (c) { return c[1]; })])
     .setFontWeight('bold').setBackground(COLORS.header).setFontColor(COLORS.headerText);
   sh.setFrozenRows(1);

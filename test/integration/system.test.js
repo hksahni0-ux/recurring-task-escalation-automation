@@ -627,3 +627,14 @@ describe('future cycles left over from before (cleanup)', () => {
     expect(g.readTable_('Task_Cycles', g.CYCLE_COLS).some((c) => c.cycleId === 'T-002-20261109')).toBe(false);
   });
 });
+
+describe('tabs wider than 26 columns (regression)', () => {
+  // Task_Cycles gained a 27th column ("Cancelled At"); a new tab has only A-Z, so every read and write threw.
+  test('Task_Cycles grows to fit its columns and automation keeps working', () => {
+    const { g, fake } = boot();
+    expect(g.CYCLE_COLS.length).toBeGreaterThan(26);
+    setNow(g, '2026-11-04 10:00');
+    expect(() => g.runAutomation_()).not.toThrow();
+    expect(fake.ss.getSheetByName('Task_Cycles').getMaxColumns()).toBeGreaterThanOrEqual(g.CYCLE_COLS.length);
+  });
+});
