@@ -492,3 +492,20 @@ describe('prepareTaskRows: next due after the current period is done (regression
     expect(t.setupCheck).toMatch(/^✅ Live: next due Sat 07 Nov 2026, 18:00/);
   });
 });
+
+describe('prepareTaskRows: instructions follow a changed proof type (regression)', () => {
+  const s = settings();
+  const employees = [{ employeeId: 'E-A', name: 'Employee A' }];
+  const now = D('2026-11-04 10:00');
+  const row = { taskId: 'T-005', taskName: 'Stand-up notes', employeeId: 'E-A', frequencyDays: 1, startDate: D('2026-11-04'), active: true };
+
+  test('an auto-filled instruction is replaced when the proof type changes', () => {
+    const [t] = g.prepareTaskRows([{ ...row, proofType: 'DAILY_UPDATE', proofInstructions: 'Portal Ticket ID' }], employees, now, s);
+    expect(t.proofInstructions).toMatch(/WhatsApp/);
+  });
+
+  test("the manager's own instruction is kept", () => {
+    const [t] = g.prepareTaskRows([{ ...row, proofType: 'DAILY_UPDATE', proofInstructions: 'Paste the stand-up summary' }], employees, now, s);
+    expect(t.proofInstructions).toBe('Paste the stand-up summary');
+  });
+});

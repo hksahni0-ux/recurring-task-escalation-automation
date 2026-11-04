@@ -308,7 +308,9 @@ function prepareTaskRows(rows, employees, now, s, cycles) {
     // An untouched checkbox reads FALSE in Sheets, so a brand-new row always starts active; unticking an existing task pauses it.
     if (isNew || t.active === null || t.active === undefined || String(t.active) === '') t.active = true;
     t.proofType = String(t.proofType || '').trim().toUpperCase() || PROOF.TICKET;
-    if (!t.proofInstructions && PROOF_INSTRUCTIONS[t.proofType]) t.proofInstructions = PROOF_INSTRUCTIONS[t.proofType];
+    // Fill a blank instruction, and replace one we filled earlier for a different proof type; text the manager typed is kept.
+    var autoFilled = Object.keys(PROOF_INSTRUCTIONS).some(function (k) { return PROOF_INSTRUCTIONS[k] === t.proofInstructions; });
+    if ((!t.proofInstructions || autoFilled) && PROOF_INSTRUCTIONS[t.proofType]) t.proofInstructions = PROOF_INSTRUCTIONS[t.proofType];
     var typed = String(t.employeeId || '').trim();
     var emp = typed ? employees.filter(function (e) { return lower(e.employeeId) === lower(typed) || lower(e.name) === lower(typed); })[0] : null;
     if (emp) t.employeeId = emp.employeeId;
