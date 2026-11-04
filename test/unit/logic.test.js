@@ -323,8 +323,12 @@ describe('access plan', () => {
     expect(editorsOf('Manager Dashboard')).toEqual(['owner@x.com', 'admin2@x.com', 'mgr@x.com', 'mgr2@x.com']);
   });
 
+  test('Task_Master: admins + managers (managers assign tasks)', () => {
+    expect(editorsOf('Task_Master')).toEqual(['owner@x.com', 'admin2@x.com', 'mgr@x.com', 'mgr2@x.com']);
+  });
+
   test('every other tab is admin-only', () => {
-    ['How It Works', 'Task_Master', 'Employees', 'Config', 'Holidays', 'Task_Cycles', 'Alert_Log', 'Test_Log']
+    ['How It Works', 'Employees', 'Config', 'Holidays', 'Task_Cycles', 'Alert_Log', 'Test_Log']
       .forEach((n) => expect(editorsOf(n)).toEqual(['owner@x.com', 'admin2@x.com']));
   });
 
@@ -348,5 +352,51 @@ describe('describeRoles', () => {
   test('an unknown or blank account has no edit rights', () => {
     expect(roles('stranger@x.com')).toEqual([]);
     expect(roles('')).toEqual([]);
+  });
+});
+
+describe('prepareTaskRows (tasks added by a manager)', () => {
+  const s = settings();
+  const employees = [{ employeeId: 'E-A', name: 'Employee A' }, { employeeId: 'E-B', name: 'Employee B' }];
+  const today = D('2026-11-04 15:00');
+  const existing = { taskId: 'T-004', taskName: 'Portal Task C', employeeId: 'E-A', frequencyDays: 30, proofType: 'TICKET', proofInstructions: 'Portal Ticket ID', startDate: D('2026-11-02'), active: true };
+  const run = (rows) => g.prepareTaskRows(rows, employees, today, s);
+
+  test('fills a new row: next Task ID, today, active, ticket proof, employee by name', () => {
+    const [, t] = run([existing, { taskName: 'Vendor reconciliation', employeeId: 'Employee B', frequencyDays: 7 }]);
+    expect(t).toMatchObject({ taskId: 'T-005', employeeId: 'E-B', proofType: 'TICKET', proofInstructions: 'Portal Ticket ID', active: true });
+    expect(g.dateKey(t.startDate)).toBe('2026-11-04');
+    expect(t.setupCheck).toMatch(/^✅ Live: next due Tue 10 Nov 2026, 18:00/);
+  });
+
+  test('daily-update tasks get the WhatsApp instruction', () => {
+    const [t] = run([{ taskName: 'Stand-up notes', employeeId: 'E-A', frequencyDays: 1, proofType: 'DAILY_UPDATE' }]);
+    expect(t.proofInstructions).toMatch(/WhatsApp/);
+  });
+
+  test('explains what is wrong instead of failing silently', () => {
+    const rows = run([
+      { taskName: 'No one', employeeId: '', frequencyDays: 7 },
+      { taskName: 'Ghost', employeeId: 'Employee Z', frequencyDays: 7 },
+      { taskName: 'Odd', employeeId: 'E-A', frequencyDays: 'weekly' },
+      { taskName: 'Typo', employeeId: 'E-A', frequencyDays: 7, proofType: 'Ticket ID' },
+    ]);
+    expect(rows.map((r) => r.setupCheck)).toEqual([
+      '❌ Choose an employee (ID or name from the Employees tab)',
+      '❌ Unknown employee "Employee Z" (see the Employees tab)',
+      '❌ Frequency must be a whole number of days (1 = every working day)',
+      '❌ Proof Type must be TICKET or DAILY_UPDATE',
+    ]);
+  });
+
+  test('a duplicated Task ID is flagged; paused tasks say so', () => {
+    const rows = run([existing, { ...existing, taskName: 'Copy' }, { ...existing, taskId: 'T-009', active: false }]);
+    expect(rows[1].setupCheck).toBe('❌ Task ID T-004 is used twice');
+    expect(rows[2].setupCheck).toBe('⏸ Paused (Active is unticked)');
+  });
+
+  test('only well-formed rows are usable', () => {
+    const rows = run([existing, { taskName: 'Ghost', employeeId: 'Employee Z', frequencyDays: 7 }]);
+    expect(rows.map((r) => g.isUsableTask(r))).toEqual([true, false]);
   });
 });

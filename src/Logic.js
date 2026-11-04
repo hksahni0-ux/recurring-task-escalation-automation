@@ -271,6 +271,72 @@ function evaluateEscalation(c, now, s) {
   return none;
 }
 
+// ---------------------------------------------------------------- task master
+
+var PROOF_INSTRUCTIONS = { TICKET: 'Portal Ticket ID', DAILY_UPDATE: 'Paste the update you posted in the Ops WhatsApp group' };
+
+function pad3_(n) {
+  return (n < 10 ? '00' : n < 100 ? '0' : '') + n;
+}
+
+/**
+ * Completes rows typed into Task_Master (Task ID, start date, Active, proof type and
+ * instructions; employee by ID or name) and sets each row's `setupCheck` message.
+ */
+function prepareTaskRows(rows, employees, now, s) {
+  var lower = function (v) { return String(v === null || v === undefined ? '' : v).trim().toLowerCase(); };
+  var maxN = 0;
+  rows.forEach(function (r) {
+    var m = /^T-(\d+)$/.exec(String(r.taskId || '').trim());
+    if (m) maxN = Math.max(maxN, +m[1]);
+  });
+  var seen = {};
+  return rows.map(function (r) {
+    var t = {};
+    Object.keys(r).forEach(function (k) { t[k] = r[k]; });
+    t.taskId = String(t.taskId || '').trim() || 'T-' + pad3_(++maxN);
+    var badStart = false;
+    if (!isDate(t.startDate)) {
+      try {
+        t.startDate = parseDateTime(t.startDate) || startOfDay(now);
+      } catch (e) {
+        badStart = true;
+      }
+    }
+    if (t.active === null || t.active === undefined || String(t.active) === '') t.active = true;
+    t.proofType = String(t.proofType || '').trim().toUpperCase() || PROOF.TICKET;
+    if (!t.proofInstructions && PROOF_INSTRUCTIONS[t.proofType]) t.proofInstructions = PROOF_INSTRUCTIONS[t.proofType];
+    var typed = String(t.employeeId || '').trim();
+    var emp = typed ? employees.filter(function (e) { return lower(e.employeeId) === lower(typed) || lower(e.name) === lower(typed); })[0] : null;
+    if (emp) t.employeeId = emp.employeeId;
+    var freq = Number(t.frequencyDays);
+    if (freq >= 1 && Math.floor(freq) === freq) t.frequencyDays = freq;
+
+    var problem = '';
+    if (!typed) problem = 'Choose an employee (ID or name from the Employees tab)';
+    else if (!emp) problem = 'Unknown employee "' + typed + '" (see the Employees tab)';
+    else if (!(freq >= 1 && Math.floor(freq) === freq)) problem = 'Frequency must be a whole number of days (1 = every working day)';
+    else if (!PROOF_INSTRUCTIONS[t.proofType]) problem = 'Proof Type must be TICKET or DAILY_UPDATE';
+    else if (badStart) problem = 'Start Date must be a date (YYYY-MM-DD)';
+    else if (seen[t.taskId]) problem = 'Task ID ' + t.taskId + ' is used twice';
+    seen[t.taskId] = true;
+
+    if (problem) t.setupCheck = '❌ ' + problem;
+    else if (!isActive(t.active)) t.setupCheck = '⏸ Paused (Active is unticked)';
+    else {
+      var c = cycleForDate(t, now < t.startDate ? t.startDate : now, s);
+      if (!c) c = nextCycleAfter(t, buildCycle_(t, startOfDay(now < t.startDate ? t.startDate : now), startOfDay(now < t.startDate ? t.startDate : now), s), s);
+      t.setupCheck = '✅ Live: next due ' + fmtDateTime(c.dueAt);
+    }
+    return t;
+  });
+}
+
+/** Rows the scheduler may use: live or paused (paused tasks still close their open cycles). */
+function isUsableTask(t) {
+  return /^(✅|⏸)/.test(String(t.setupCheck || ''));
+}
+
 // ---------------------------------------------------------------- holidays
 
 var HOLIDAY_SOURCE = { CALENDAR: 'Google Calendar', MANUAL: 'Manual' };
@@ -355,7 +421,8 @@ function buildAccessPlan(employees, adminList, managerList) {
     return { sheet: e.tabName, role: 'Employee: ' + e.name, editors: uniq(admins.concat(split(e.email))) };
   });
   plan.push({ sheet: SHEETS.DASHBOARD, role: 'Manager', editors: uniq(admins.concat(split(managerList))) });
-  [SHEETS.GUIDE, SHEETS.TASKS, SHEETS.EMPLOYEES, SHEETS.CONFIG, SHEETS.HOLIDAYS, SHEETS.CYCLES, SHEETS.ALERTS, SHEETS.TESTS]
+  plan.push({ sheet: SHEETS.TASKS, role: 'Manager (assigns tasks)', editors: uniq(admins.concat(split(managerList))) });
+  [SHEETS.GUIDE, SHEETS.EMPLOYEES, SHEETS.CONFIG, SHEETS.HOLIDAYS, SHEETS.CYCLES, SHEETS.ALERTS, SHEETS.TESTS]
     .forEach(function (n) { plan.push({ sheet: n, role: 'Admin', editors: admins.slice() }); });
   return plan;
 }

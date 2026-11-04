@@ -33,12 +33,13 @@ function ensureSheet_(name) {
   return ss.getSheetByName(name) || ss.insertSheet(name);
 }
 
-function readTable_(name, cols) {
+/** Data rows as objects. By default a row counts when its first cell is filled; `keep` overrides that. */
+function readTable_(name, cols, keep) {
   var sh = getSheet_(name);
   var last = sh.getLastRow();
   if (last < 2) return [];
   return sh.getRange(2, 1, last - 1, cols.length).getValues()
-    .filter(function (r) { return r[0] !== '' && r[0] !== null; })
+    .filter(keep || function (r) { return r[0] !== '' && r[0] !== null; })
     .map(function (r) {
       var o = {};
       cols.forEach(function (c, i) { o[c[0]] = r[i]; });

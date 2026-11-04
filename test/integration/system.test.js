@@ -318,7 +318,8 @@ describe('access rules (real protections on every tab)', () => {
     expect(ed('My Tasks - Employee A')).toEqual([...admins, 'emp.a@example.com'].sort());
     expect(ed('My Tasks - Employee B')).toEqual([...admins, 'emp.b@example.com'].sort());
     expect(ed('Manager Dashboard')).toEqual([...admins, 'manager@example.com'].sort());
-    ['Task_Master', 'Employees', 'Config', 'Holidays', 'Task_Cycles', 'Alert_Log', 'Test_Log', 'How It Works']
+    expect(ed('Task_Master')).toEqual([...admins, 'manager@example.com'].sort());
+    ['Employees', 'Config', 'Holidays', 'Task_Cycles', 'Alert_Log', 'Test_Log', 'How It Works']
       .forEach((n) => expect(ed(n)).toEqual(admins));
     expect(result.problems).toEqual([]);
   });
@@ -379,5 +380,43 @@ describe('Who am I?', () => {
     fake.user = 'owner@example.com';
     g.showMyAccess();
     expect(shown[1]).toMatch(/Owner \(admin\)/);
+  });
+});
+
+describe('a manager adds a task in Task_Master', () => {
+  function addRow(g, fake, values) {
+    const sh = fake.ss.getSheetByName('Task_Master');
+    const row = sh.getLastRow() + 1;
+    values.forEach(([col, v]) => sh.getRange(row, col).setValue(v));
+    g.handleEdit_({ range: sh.getRange(row, values[values.length - 1][0]), value: values[values.length - 1][1] });
+    return row;
+  }
+
+  test('the row is completed, a cycle opens and it shows on the employee tab immediately', () => {
+    const { g, fake } = boot();
+    setNow(g, '2026-11-04 15:00');
+    const row = addRow(g, fake, [[2, 'Vendor reconciliation'], [3, 'Employee B'], [4, 7]]);
+    const t = g.readTable_('Task_Master', g.TASK_COLS).find((x) => x.taskName === 'Vendor reconciliation');
+    expect(t).toMatchObject({ taskId: 'T-005', employeeId: 'E-B', proofType: 'TICKET', active: true });
+    expect(fake.ss.getSheetByName('Task_Master').getRange(row, 9).getValue()).toMatch(/^✅ Live/);
+    const cycle = g.readTable_('Task_Cycles', g.CYCLE_COLS).find((c) => c.taskId === 'T-005');
+    expect(cycle.status).toBe('Pending');
+    expect(g.findRowByValue_(fake.ss.getSheetByName('My Tasks - Employee B'), 1, cycle.cycleId)).toBeGreaterThan(g.EMP_VIEW.HEADER_ROW);
+  });
+
+  test('a row with a problem is kept, explained, and creates no cycle', () => {
+    const { g, fake } = boot();
+    setNow(g, '2026-11-04 15:00');
+    const row = addRow(g, fake, [[2, 'Ghost task'], [3, 'Employee Z'], [4, 7]]);
+    expect(fake.ss.getSheetByName('Task_Master').getRange(row, 2).getValue()).toBe('Ghost task');
+    expect(fake.ss.getSheetByName('Task_Master').getRange(row, 9).getValue()).toMatch(/Unknown employee/);
+    expect(g.readTable_('Task_Cycles', g.CYCLE_COLS).some((c) => c.taskName === 'Ghost task')).toBe(false);
+  });
+
+  test('the hourly run ignores a broken row instead of failing', () => {
+    const { g, fake } = boot();
+    setNow(g, '2026-11-04 15:00');
+    addRow(g, fake, [[2, 'Ghost task'], [3, 'Employee Z'], [4, 7]]);
+    expect(() => g.runAutomation_()).not.toThrow();
   });
 });

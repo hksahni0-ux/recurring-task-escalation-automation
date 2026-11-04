@@ -109,7 +109,7 @@ An optional note can be added. The system stores who acknowledged it, when, the 
 | Role | Who | Can edit |
 |---|---|---|
 | Employee | Their email in the Employees tab | Only their own My Tasks tab. Anything typed outside the yellow column is undone on the next redraw |
-| Manager | Config → MANAGER_EMAIL | Only the Manager Dashboard (Ack ✔, Manager Action, Note) |
+| Manager | Config → MANAGER_EMAIL | The Manager Dashboard (Ack ✔, Manager Action, Note) and Task_Master, to assign tasks |
 | Admin | Sheet owner + Config → ADMIN_EMAILS | Every tab and every ⚙ Ops Automation menu item (the menu is visible to all, but runs only for admins) |
 
 The rules re-apply automatically whenever the Employees or Config tab changes. Completions and acknowledgements are recorded by the owner's triggers, so locked tabs never block the automation. Google Sheets cannot hide tabs per person, so everyone with access can *view* every tab. Reviewers are added to ADMIN_EMAILS so they can run the demo.
@@ -132,4 +132,4 @@ The tests run the real code paths (time-trigger run, employee edit, dashboard ed
 | 7 | SLA boundaries | Each rule checked one minute before and at its deadline; holiday shift; no repeats |
 | 8 | Run automation 3× at each stage; enter completion twice | 1 manager email, 1 leadership email, unique cycle IDs, completion recorded once |
 
-The same logic is also covered by 70 automated tests in Node (`npm run test:all`), run in CI on every push.
+The same logic is also covered by 79 automated tests in Node (`npm run test:all`), run in CI on every push.

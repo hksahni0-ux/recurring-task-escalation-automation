@@ -27,7 +27,7 @@ var EMPLOYEE_COLS = [['employeeId', 'Employee ID'], ['name', 'Name'], ['email', 
 var TASK_COLS = [
   ['taskId', 'Task ID'], ['taskName', 'Task Name'], ['employeeId', 'Assigned To (Employee ID)'],
   ['frequencyDays', 'Frequency (Days)'], ['proofType', 'Proof Type'], ['proofInstructions', 'What the Employee Enters'],
-  ['startDate', 'Start Date'], ['active', 'Active']
+  ['startDate', 'Start Date'], ['active', 'Active'], ['setupCheck', 'Status (automatic)']
 ];
 
 var CYCLE_COLS = [

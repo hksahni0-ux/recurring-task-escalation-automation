@@ -6,18 +6,31 @@
 function loadContext_() {
   syncTimeZone_();
   var settings = loadConfig_();
+  var now = settings.simulatedNow || new Date();
+  var employees = readTable_(SHEETS.EMPLOYEES, EMPLOYEE_COLS);
+  // A Task_Master row counts as soon as it has a Task ID or a Task Name (managers type new rows without an ID).
+  var rawTasks = readTable_(SHEETS.TASKS, TASK_COLS, function (r) { return String(r[0]).trim() !== '' || String(r[1]).trim() !== ''; })
+    .map(function (t) {
+      // A start date is a calendar day: round to the nearest midnight so a time-zone-shifted value still lands on the intended day.
+      if (isDate(t.startDate)) t.startDate = startOfDay(addMinutes(t.startDate, 12 * 60));
+      return t;
+    });
+  var taskRows = prepareTaskRows(rawTasks, employees, now, settings);
   return {
     settings: settings,
-    now: settings.simulatedNow || new Date(),
-    employees: readTable_(SHEETS.EMPLOYEES, EMPLOYEE_COLS),
-    tasks: readTable_(SHEETS.TASKS, TASK_COLS).map(function (t) {
-      var d = isDate(t.startDate) ? t.startDate : parseDateTime(t.startDate);
-      // A start date is a calendar day: round to the nearest midnight so a time-zone-shifted value still lands on the intended day.
-      t.startDate = d ? startOfDay(addMinutes(d, 12 * 60)) : d;
-      return t;
-    }),
+    now: now,
+    employees: employees,
+    rawTasks: rawTasks,
+    taskRows: taskRows,
+    tasks: taskRows.filter(isUsableTask),
     cycles: readTable_(SHEETS.CYCLES, CYCLE_COLS)
   };
+}
+
+/** Writes back Task_Master only when preparing the rows changed something (filled defaults or a new status). */
+function syncTaskMaster_(ctx) {
+  var key = function (rows) { return JSON.stringify(toRows_(TASK_COLS, rows)); };
+  if (key(ctx.rawTasks) !== key(ctx.taskRows)) writeTable_(SHEETS.TASKS, TASK_COLS, ctx.taskRows);
 }
 
 function saveCycles_(ctx) {
@@ -41,6 +54,7 @@ function runAutomation(e) {
 function runAutomation_() {
   return withLock_(function () {
     var ctx = loadContext_();
+    syncTaskMaster_(ctx);
     var created = ensureCurrentCycles_(ctx);
     ctx.cycles.forEach(function (c) { c.status = cycleStatus(c, ctx.now); });
     saveCycles_(ctx);
@@ -204,6 +218,7 @@ function handleEdit_(e) {
   if (name === SHEETS.DASHBOARD) handleDashboardEdit_(e, sh);
   else if (name.indexOf(EMPLOYEE_TAB_PREFIX) === 0) handleEmployeeEdit_(e, sh);
   else if (name === SHEETS.EMPLOYEES || name === SHEETS.CONFIG) withLock_(applyAccessRules_); // roles may have changed
+  else if (name === SHEETS.TASKS) runAutomation_(); // a new or changed task takes effect at once
 }
 
 function handleEmployeeEdit_(e, sh) {
