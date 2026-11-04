@@ -186,7 +186,7 @@ describe('SLA / escalation', () => {
 
 describe('views', () => {
   const s = settings();
-  test('employee view lists open work first, then upcoming, then recent completions', () => {
+  test('employee view lists open work first, then recent completions; upcoming cycles are hidden', () => {
     const now = D('2026-11-04 10:00');
     const mk = (task, day, extra = {}) => ({ ...g.cycleForDate(task, D(day), s), ...extra });
     const cycles = [
@@ -198,7 +198,6 @@ describe('views', () => {
     expect(g.selectEmployeeView(cycles, now, 5).map((c) => c.cycleId)).toEqual([
       'T-001-20261104',
       'T-002-20261102',
-      'T-001-20261105',
       'T-001-20261103',
     ]);
   });

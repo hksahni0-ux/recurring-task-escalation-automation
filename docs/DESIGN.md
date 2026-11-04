@@ -28,7 +28,7 @@ Task_Master ──(hourly / 07:00 run)──► Task_Cycles: one row per cycle, 
 |---|---|---|
 | How It Works | Built-in guide | none |
 | Manager Dashboard | Team summary (pending / overdue / awaiting ack / escalated / done this week) and an exceptions list with **Ack ✔, Manager Action, Note** | Manager |
-| My Tasks - Employee A…D | Each employee's single working place: overdue, pending, upcoming, recent completions. One yellow input column | Employee |
+| My Tasks - Employee A…D | Each employee's single working place: overdue and pending work, plus recent completions (the next occurrence appears when its period starts). One yellow input column | Employee |
 | Task_Master | Recurring task definitions: frequency (days), proof type (TICKET / DAILY_UPDATE), start date, active | Admin |
 | Employees, Config, Holidays | Team, SLA settings and recipients, non-working days | Admin |
 | Task_Cycles | System of record: every cycle with completion, alert, ack and escalation history | Automation only |
@@ -133,4 +133,4 @@ The tests run the real code paths (time-trigger run, employee edit, dashboard ed
 | 7 | SLA boundaries | Each rule checked one minute before and at its deadline; holiday shift; no repeats |
 | 8 | Run automation 3× at each stage; enter completion twice | 1 manager email, 1 leadership email, unique cycle IDs, completion recorded once |
 
-The same logic is also covered by 97 automated tests in Node (`npm run test:all`), run in CI on every push.
+The same logic is also covered by 98 automated tests in Node (`npm run test:all`), run in CI on every push.

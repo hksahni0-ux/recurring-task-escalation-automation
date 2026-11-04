@@ -172,7 +172,7 @@ function writeGuide_() {
     ['Recurring Task Tracking & Escalation: How It Works', ''],
     ['', ''],
     ['WHO DOES WHAT', ''],
-    ['Employee', 'Opens only their own "My Tasks - <name>" tab. It lists what is Overdue/Pending now, what is coming up, and recent completions. To complete a task they type ONE thing into the yellow cell: the portal Ticket ID, or for the daily task, the update they posted in the WhatsApp group. Nothing else to update anywhere.'],
+    ['Employee', 'Opens only their own "My Tasks - <name>" tab. It lists what is Overdue or Pending now, plus recent completions. The next occurrence of a task appears automatically on the day its period starts. To complete a task they type ONE thing into the yellow cell: the portal Ticket ID, or for the daily task, the update they posted in the WhatsApp group. Nothing else to update anywhere.'],
     ['System', 'Records who completed it and when, closes the cycle, opens the next cycle automatically, and refreshes the Manager Dashboard. Invalid entries (e.g. a 1-character ticket) are rejected with a note explaining why.'],
     ['Manager', 'Watches the Manager Dashboard (team summary + exceptions). Receives ONE same-day email per overdue item. Must acknowledge it (email button or tick Ack ✔ on the dashboard) and record the action taken.'],
     ['Leadership', 'Receives ONE escalation email per item if the manager does not acknowledge in time, the task is still not done after the SLA, or the manager asks for help.'],

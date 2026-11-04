@@ -459,9 +459,15 @@ function buildAccessPlan(employees, adminList, managerList) {
 
 var STATUS_ORDER_ = { Overdue: 0, Pending: 1, Upcoming: 2, Completed: 3, Cancelled: 4 };
 
-/** Rows for an employee's "My Tasks" tab: open work, then upcoming, then the latest completions. */
+/**
+ * Rows for an employee's "My Tasks" tab: work they can act on now (overdue, then pending), then the latest
+ * completions. Upcoming cycles are prepared in Task_Cycles but stay hidden until their period starts, so the
+ * same task never appears twice.
+ */
 function selectEmployeeView(cycles, now, completedLimit) {
-  var withStatus = cycles.filter(function (c) { return !c.cancelledAt; }).map(function (c) { return { c: c, st: cycleStatus(c, now) }; });
+  var withStatus = cycles.filter(function (c) { return !c.cancelledAt; })
+    .map(function (c) { return { c: c, st: cycleStatus(c, now) }; })
+    .filter(function (x) { return x.st !== STATUS.UPCOMING; });
   var open = withStatus.filter(function (x) { return x.st !== STATUS.COMPLETED; }).sort(function (a, b) {
     return STATUS_ORDER_[a.st] - STATUS_ORDER_[b.st] || a.c.dueAt - b.c.dueAt;
   });
